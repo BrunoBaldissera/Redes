@@ -73,16 +73,20 @@ int main(int argc, char const *argv[])
 	    if( FD_ISSET(sock, &read_fds)){
 	        /* There is data waiting on your socket.  Read it with recv(). */
 	        valread = recv(sock , msg_recv, 1024, 0);
-	        printf("cliente: %s\n", msg_recv);
+	        printf("Servidor: %s\n", msg_recv);
 	    }
 
 	    if( FD_ISSET(STDIN_FILENO, &read_fds )){
 	        /* The user typed something.  Read it fgets or something.
 	           Then send the data to the server. */
 	    	fscanf(stdin,"%[^\n]%*c",msg_send);
-	    	valread = send(sock , msg_send, 1024, 0);
+	    	msg_send[strlen(msg_send)] = 0;
+	    	valread = send(sock , msg_send, strlen(msg_send)+1, 0);
 	    }
 	}
+
+	free(msg_recv);
+	free(msg_send);
 
     return 0; 
 } 
