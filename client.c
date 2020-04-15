@@ -43,20 +43,46 @@ int main(int argc, char const *argv[])
     }
 
 
-    char* buffer = malloc(sizeof(char)*1024);
-    char* mensagem = malloc(sizeof(char)*1024);
-    while(1){
-        fscanf(stdin,"%[^\n]%*c",mensagem);
-        mensagem[strlen(mensagem)] = 0; // põe o \0
-        if(strlen(mensagem)!= 0){
-            send(sock , mensagem , strlen(mensagem)+1 , 0);
-            printf("cliente: %s\n",mensagem);
-        }
-        valread = recv(sock , buffer, 1024, 0);
-        if(valread != 0){
-            printf("server: %s\n",buffer);
-        }
-    }
+    char* msg_recv = malloc(sizeof(char)*1024);
+    char* msg_send = malloc(sizeof(char)*1024);
+
+    fd_set read_fds;
+
+	while(1){
+
+		// CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE
+	    int fd_max = STDIN_FILENO;
+
+	    /* Set the bits for the file descriptors you want to wait on. */
+	    FD_ZERO(&read_fds);
+	    FD_SET(STDIN_FILENO, &read_fds);
+	    FD_SET(sock, &read_fds);
+
+	    /* The select call needs to know the highest bit you set. */    
+	    if( sock > fd_max ){
+	    	fd_max = sock; 
+	 	}
+
+	    /* Wait for any of the file descriptors to have data. */
+	    if (select(fd_max + 1, &read_fds, NULL, NULL, NULL) == -1){
+	      	perror("select:");
+	      	exit(1);
+	    }
+
+	    /* After select, if an fd's bit is set, then there is data to read. */      
+	    if( FD_ISSET(sock, &read_fds)){
+	        /* There is data waiting on your socket.  Read it with recv(). */
+	        valread = recv(sock , msg_recv, 1024, 0);
+	        printf("cliente: %s\n", msg_recv);
+	    }
+
+	    if( FD_ISSET(STDIN_FILENO, &read_fds )){
+	        /* The user typed something.  Read it fgets or something.
+	           Then send the data to the server. */
+	    	fscanf(stdin,"%[^\n]%*c",msg_send);
+	    	valread = send(sock , msg_send, 1024, 0);
+	    }
+	}
 
     return 0; 
 } 
