@@ -11,11 +11,20 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <stdlib.h> 
+#include <stdlib.h>
+#include <signal.h>
 #define PORT 1337 
+
+
+volatile sig_atomic_t flag = 0;
+void my_function(int sig){ // can be called asynchronously
+  	flag = 1; // set flag
+}
    
-int main(int argc, char const *argv[]) 
-{ 
+int main(int argc, char const *argv[]){
+	signal(SIGINT, my_function);
+	signal(SIGPIPE, my_function);
+
     int sock = 0, valread; 
     struct sockaddr_in serv_addr; 
 
@@ -50,6 +59,11 @@ int main(int argc, char const *argv[])
 
 	while(1){
 
+		if(flag == 1){
+			send(sock , "SAINDO DO PROGRAMA....", strlen(msg_send)+1, 0);
+			break;
+		}
+
 		// CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE CLIENTE SIDE
 	    int fd_max = STDIN_FILENO;
 
@@ -73,6 +87,9 @@ int main(int argc, char const *argv[])
 	    if( FD_ISSET(sock, &read_fds)){
 	        /* There is data waiting on your socket.  Read it with recv(). */
 	        valread = recv(sock , msg_recv, 1024, 0);
+	        if(valread == 0){
+	        	continue;
+	        }
 	        printf("Servidor: %s\n", msg_recv);
 	    }
 
@@ -84,6 +101,7 @@ int main(int argc, char const *argv[])
 	    	valread = send(sock , msg_send, strlen(msg_send)+1, 0);
 	    }
 	}
+	close(sock);
 
 	free(msg_recv);
 	free(msg_send);
