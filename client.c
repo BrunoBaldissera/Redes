@@ -46,14 +46,16 @@ int main(int argc, char const *argv[])
     char* buffer = malloc(sizeof(char)*1024);
     char* mensagem = malloc(sizeof(char)*1024);
     while(1){
-        printf("cliente: ");
         fscanf(stdin,"%[^\n]%*c",mensagem);
         mensagem[strlen(mensagem)] = 0; // põe o \0
-        send(sock , mensagem , strlen(mensagem)+1 , 0 );
-        printf("\nFoi enviada a mensagem \"%s\" de tamanho %ld\n", mensagem, strlen(mensagem));
-        valread = recv(sock , buffer, 1024, 0); 
-        printf("server: %s\n",buffer);
-        printf("\nFoi recebida a mensagem \"%s\" de tamanho %ld\n", buffer, strlen(buffer));
+        if(strlen(mensagem)!= 0){
+            send(sock , mensagem , strlen(mensagem)+1 , 0);
+            printf("cliente: %s\n",mensagem);
+        }
+        valread = recv(sock , buffer, 1024, 0);
+        if(valread != 0){
+            printf("server: %s\n",buffer);
+        }
     }
 
     return 0; 

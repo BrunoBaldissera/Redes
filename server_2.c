@@ -12,11 +12,16 @@
 #include <netinet/in.h> 
 #include <string.h> 
 #include <stdlib.h>
+
+//vendo se essa função funciona
+#include <sys/select.h>
+//
+
 #define PORT 1337
 
 int main(int argc, char const *argv[]) 
 { 
-    int server_fd, new_socket, valread; 
+    int server_fd, sock, valread; 
     struct sockaddr_in address; 
     int opt = 1; 
     int addrlen = sizeof(address);
@@ -45,7 +50,7 @@ int main(int argc, char const *argv[])
         perror("listen"); 
         exit(EXIT_FAILURE); 
     } 
-    if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen))<0) { 
+    if ((sock = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen))<0) { 
         perror("accept"); 
         exit(EXIT_FAILURE); 
     }
@@ -56,14 +61,16 @@ int main(int argc, char const *argv[])
     char* buffer = malloc(sizeof(char)*1024);
     char* mensagem = malloc(sizeof(char)*1024);
     while(1){
-    	valread = recv(new_socket , buffer, 1024, 0); 
-        printf("cliente: %s\n",buffer);
-        printf("\nFoi recebida a mensagem \"%s\" de tamanho %ld\n", buffer, strlen(buffer));
-    	printf("server:");
     	fscanf(stdin,"%[^\n]%*c",mensagem);
-    	mensagem[strlen(mensagem)] = 0; // põe o \0
-   	 	send(new_socket , mensagem , strlen(mensagem)+1 , 0);
-   	 	printf("\nFoi enviada a mensagem \"%s\" de tamanho %ld\n", mensagem, strlen(mensagem));
-    }
+	    mensagem[strlen(mensagem)] = 0; // põe o \0
+    	if(strlen(mensagem)!= 0){
+    		send(sock , mensagem , strlen(mensagem)+1 , 0);
+    		printf("server: %s\n",mensagem);
+    	}
+    	valread = recv(sock , buffer, 1024, 0);
+    	if(valread != 0){
+    		printf("cliente: %s\n",buffer);
+    	}
+   	}
     return 0; 
 } 
