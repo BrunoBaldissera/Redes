@@ -15,9 +15,6 @@
 #include <signal.h>
 #define PORT 1337
 
-//Esta é a flag que determina se o processo do servidor sofreu interrupção ou não. É inicializada com 0 (falso).
-volatile sig_atomic_t int_flag = 0;
-
 //Aqui temos a função que atribui 1 (verdadeiro) para a flag de interrupção.
 void sighandler(int);
 
@@ -75,11 +72,6 @@ int main(int argc, char const *argv[]){
  	  A cada iteração verificamos se a flag de interrupção indica interrupção, e caso positivo, 
 	  enviamos uma mensagem de encerramento do programa e encerramos o laço.*/
 	while(1){
-		if(int_flag == 1){
-			send(sock, "SAINDO DO PROGRAMA....", strlen("SAINDO DO PROGRAMA....")+1, 0);
-			break;
-		}
-
 		// SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE 
 		int fd_max = STDIN_FILENO;
 
