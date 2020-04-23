@@ -117,7 +117,7 @@ int main(int argc, char const *argv[]){
 		    	valread = send(sock , msg_send, strlen(msg_send)+1, 0);
 		}
 	}
-	
+
 	close(sock);
 	free(msg_recv);
 	free(msg_send);
@@ -128,5 +128,6 @@ int main(int argc, char const *argv[]){
 void sighandler(int signum){ //Sua chamada pode ser feita assíncronamente
 	printf("Saindo do programa, signum: %d", signum);
 	send(sock, "SAINDO DO PROGRAMA....", strlen("SAINDO DO PROGRAMA....")+1, 0);
+	close(sock);
 	exit(1);
 }
