@@ -19,6 +19,13 @@ volatile sig_atomic_t flag = 0;
 void my_function(int sig){ // can be called asynchronously
   	flag = 1; // set flag
 }
+
+int comands(char* word){
+	if(strcmp(word,"exit") == 0){
+		return 1;
+	}
+	return 0;
+}
    
 int main(int argc, char const *argv[]){
 	signal(SIGINT, my_function);
@@ -51,15 +58,14 @@ int main(int argc, char const *argv[]){
     }
 
 
-    char* msg_recv = malloc(sizeof(char)*1024);
-    char* msg_send = malloc(sizeof(char)*1024);
-
+    char* msg_recv = malloc(sizeof(char)*4096);
+    char* msg_send = malloc(sizeof(char)*8192);
+	char* buffer = malloc(sizeof(char)*4096);
     fd_set read_fds;
 
 	while(1){
 
 		if(flag == 1){
-			send(sock , "SAINDO DO PROGRAMA....", strlen(msg_send)+1, 0);
 			break;
 		}
 
@@ -82,23 +88,48 @@ int main(int argc, char const *argv[]){
 	      	exit(1);
 	    }
 
+	    if( FD_ISSET(STDIN_FILENO, &read_fds )){
+	    	fscanf(stdin,"%[^\n]%*c",msg_send);
+	    	//printf("%d\n", (int)strlen(msg_send));
+	    	printf("TESTE\n");
+	    	msg_send[strlen(msg_send)] = 0;
+	    	int offset = 0;
+	    	int flag;
+	    	if(msg_send[0] == '\\'){
+	    		flag = comands(msg_send+1);
+	    		if(flag == 1){
+	    			close(sock);
+	    			break;
+	    		}
+	    	}
+/*
+		    while(strlen(msg_send+offset) >= 99){
+		    	memcpy(buffer,msg_send+offset,99);
+		    	buffer[99] = '\0';
+		    	valread = send(sock , buffer, 100, 0);
+		    	offset += 99;
+		    }
+*/
+		    //printf("aa %d\n", (int)strlen(msg_send+offset));
+	    	valread = send(sock , msg_send+offset, strlen(msg_send+offset)+1, 0);
+	    }
+
+
 	    /* After select, if an fd's bit is set, then there is data to read. */      
 	    if( FD_ISSET(sock, &read_fds)){
 	        /* There is data waiting on your socket.  Read it with recv(). */
-	        valread = recv(sock , msg_recv, 1024, 0);
+	        valread = recv(sock , msg_recv, 4096, 0);
 	        if(valread == 0){
-	        	continue;
+	        	printf("O crush desconectou, triste né meu filho?\n");
+	        	break;
 	        }
-	        printf("Servidor: %s\n", msg_recv);
+	        else{
+	        	printf("Servidor: %s\n", msg_recv);
+	        }
 	    }
 
-	    if( FD_ISSET(STDIN_FILENO, &read_fds )){
-	        /* The user typed something.  Read it fgets or something.
-	           Then send the data to the server. */
-	    	fscanf(stdin,"%[^\n]%*c",msg_send);
-	    	msg_send[strlen(msg_send)] = 0;
-	    	valread = send(sock , msg_send, strlen(msg_send)+1, 0);
-	    }
+
+
 	}
 	close(sock);
 
