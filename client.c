@@ -164,7 +164,7 @@ int main(int argc, char const *argv[]){
 
 		//Bloco que checa a presença de mais dados para serem recebidos através do recv()
 	    if( FD_ISSET(sock, &read_fds)){
-	        /* There is data waiting on your socket.  Read it with recv(). */
+	    
 	        valread = recv(sock , msg_recv, 4096, 0);
 
 			//checagem de desconexão
