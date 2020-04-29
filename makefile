@@ -1,9 +1,6 @@
-comp_cliente:
+compila:
 
 	gcc client.c -o client
-
-comp_servidor:
-
 	gcc server.c -o server
 
 roda_cliente:
