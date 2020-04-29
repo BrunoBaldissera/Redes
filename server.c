@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <pthread.h>
+#include <time.h>
 #define PORT 1337
 
 //Aqui declaramos função chamada quando recebe-se um sinal de interrupção.
@@ -26,6 +27,9 @@ void sighandler(int);
 int sock;
 
 int commands(char* word){
+	if(strcmp(word,"ping") == 0){
+		return 2;
+	}
 	if(strcmp(word,"exit") == 0){
 		return 1;
 	}
@@ -33,12 +37,6 @@ int commands(char* word){
 		return 1;
 	}
 	if(strcmp(word,"sair") == 0){
-		return 1;
-	}
-	if(strcmp(word,"abandonar o navio") == 0){
-		return 1;
-	}
-	if(strcmp(word,"sebo nas canelas") == 0){
 		return 1;
 	}
 	return 0;
@@ -91,6 +89,8 @@ int main(int argc, char const *argv[]){
 		exit(EXIT_FAILURE); 
 	}
 
+	printf("Conectado!\n\n");
+
 	// A comunicação: aqui estão as variáveis que representam cada mensagem enviada e recebida, e o buffer que tratará o tamanho delas, caso necessário.
 	char* msg_recv = malloc(sizeof(char)*4096);
 	char* msg_send = malloc(sizeof(char)*8192);
@@ -106,12 +106,19 @@ int main(int argc, char const *argv[]){
 	int msg_count = 0;
 	int nome_def = 1;
 
-	printf("Conectado!\n\n");
+	time_t start, end;
+	struct timeval timeout_time;
+	timeout_time.tv_sec = 3;
+	timeout_time.tv_usec = 0;
+
+	int ping_flag = 0;
+
+
+
+	int flag;
 	
 	printf("\tLimite do tamanho da mensagem: %d. Ou seja, mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
 	printf("\tDefina aqui o seu nome a ser visto pelo cliente seguido da tecla enter:\n\n");
-
-	sleep(0.01);
 
 	/*Enquanto o programa está ativo, este laço é executado,
 	  onde são executadas as ações ecessárias de interação entre cliente e servidor.*/
@@ -129,7 +136,7 @@ int main(int argc, char const *argv[]){
 	 		}
 
 	    	/* Aqui se espera até que um dos descritores de arquivo tenham dados (não sejam nulos), para depois continuar a comunicação. */
-	    	if (select(fd_max + 1, &read_fds, NULL, NULL, NULL) == -1){
+	    	if (select(fd_max + 1, &read_fds, NULL, NULL, &timeout_time) == -1){
 	      		perror("select: ");
 	      		exit(1);
 	    	}
@@ -138,60 +145,74 @@ int main(int argc, char const *argv[]){
 	    	fscanf(stdin,"%[^\n]%*c",msg_send);
 	    	//printf("%d\n", (int)strlen(msg_send));
 	    	msg_send[strlen(msg_send)] = 0;
-	    	int offset = 0;
 			int msg_size;
-	    	int flag;
 	    	if(msg_send[0] == '\\'){
 	    		flag = commands(msg_send+1);
 	    		if(flag == 1){
-	    			close(sock);
 	    			break;
+	    		}
+	    		else if(flag == 2){
+	    			valread = send(sock , "\\ping\0", strlen("\\ping\0")+1, 0);
+	    			ping_flag = 1;
+	    			time(&start);
 	    		}
 	    	}
 
-		for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
-			msg_size = strlen(msg_send+offset);
+			for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
+				msg_size = strlen(msg_send+offset);
 		    	if(msg_size < msg_max_size){
 				memcpy(buffer,msg_send+offset,msg_size);
 		    		buffer[msg_size] = '\0';
-		    		sleep(0.01); //dorme por 50 milissegundos
 		    		valread = send(sock , buffer, msg_size+1, 0);
 		    		break;
 		    	}
 		    	else{
 		    		memcpy(buffer,msg_send+offset,msg_max_size-1);
 		    		buffer[msg_max_size-1] = '\0';
-		    		sleep(0.01);
 		    		valread = send(sock , buffer, msg_max_size, 0);
 		    	}
 
-		    }
+			}
 		}
 
 
 	    	/* After select, if an fd's bit is set, then there is data to read. */      
-	    	if( FD_ISSET(sock, &read_fds)){
-	        	/* There is data waiting on your socket.  Read it with recv(). */
-	        	valread = recv(sock , msg_recv, 4096, 0);
-	        	if(valread == 0){
-	        		printf("%s desconectou, triste né meu filho?\n", nome);
-	        		break;
-	        	}
+    	if( FD_ISSET(sock, &read_fds)){
+        	/* There is data waiting on your socket.  Read it with recv(). */
+        	valread = recv(sock , msg_recv, 4096, 0);
+        	if(valread == 0){
+        		printf("%s desconectou, triste né meu filho?\n", nome);
+        		break;
+        	}
+        	else{
+        		if(msg_count == 0){
+        			strcpy(nome,msg_recv);
+					printf("\n\tNome definido!\n\n");	
+        		}
 	        	else{
-	        		if(msg_count == 0){
-	        			strcpy(nome,msg_recv);
+	        		if(msg_recv[0] == '\\'){
+	        			flag = commands(msg_recv+1);
+	        			if(flag == 2){
+	        				if(ping_flag == 0){
+	        					valread = send(sock ,"\\ping\0", strlen("\\ping\0")+1, 0);
+	        					printf("%s pingou você\n", nome);
+	        					ping_flag = 2;
+	        				}
+	        				else if(ping_flag == 1){
+	        					time(&end);
+	        					printf("Ping feito com sucesso, tempo demorado: %lf\n", difftime(end,start));
+	        					ping_flag = 0;
+	        				}
+	        			}
 	        		}
 	        		else{
 	        			printf("%s: %s\n",nome, msg_recv);
 	        		}
-	        		msg_count++;
 	        	}
-		
-	    	}
-		if(nome_def){
-			nome_def = 0;
-			printf("\n\tNome definido!\n\n");	
-		}
+        		msg_count++;
+        	}
+	
+    	}
 	}
 
 	// Fechamos o socket e liberamos a memória alocada para as variáveis
@@ -200,7 +221,7 @@ int main(int argc, char const *argv[]){
 	free(msg_send);
 	free(buffer);
 
-    	return 0;
+    return 0;
 }
 
 /* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)

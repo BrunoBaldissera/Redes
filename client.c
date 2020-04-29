@@ -12,18 +12,20 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <time.h>
 #define PORT 1337 
 
-//Declaração da flag como variável global, para uso na função que pode ser chamada de forma assíncrona
-volatile sig_atomic_t flag = 0;
+//Aqui declaramos função chamada quando recebe-se um sinal de interrupção.
+void sighandler(int);
 
-void set_flag(int sig){
-  	flag = 1;
-}
+//Declaramos globalmente o socket
+int sock;
 
 //Comandos que podem ser enviados via terminal para operar o chat
 int commands(char* word){
-	
+	if(strcmp(word,"ping") == 0){
+		return 2;
+	}
 	if(strcmp(word,"exit") == 0){
 		return 1;
 	}
@@ -33,15 +35,14 @@ int commands(char* word){
 	if(strcmp(word,"sair") == 0){
 		return 1;
 	}
-
 	return 0;
 }
    
 int main(int argc, char const *argv[]){
 
 	//Funções para finalizar o programa via flag setada por 1, redirecionada aos sinais do SO
-	signal(SIGINT, set_flag);
-	signal(SIGPIPE, set_flag);
+	signal(SIGINT, sighandler);
+	signal(SIGPIPE, sighandler);
 
     int sock = 0, valread;
 	struct sockaddr_in serv_addr;
@@ -74,7 +75,7 @@ int main(int argc, char const *argv[]){
 	
 	//Variáveis para armazenar mensagens
 	char* msg_recv = malloc(sizeof(char)*4096);
-	char* msg_send = malloc(sizeof(char)*8192);
+	char* msg_send = malloc(sizeof(char)*4096);
 	char* buffer = malloc(sizeof(char)*4096);
 	char nome[60];
 
@@ -91,9 +92,14 @@ int main(int argc, char const *argv[]){
 	printf("Limite do tamanho da mensagem: %d. Ou seja, mensagens maiores que %d serão truncadas\n", msg_max_size, msg_max_size-1);
 
 	//Timeouts para tempo de processamento do terminal
+	time_t start, end;
 	struct timeval timeout_time;
     timeout_time.tv_sec = 3;
     timeout_time.tv_usec = 0;
+
+    int ping_flag = 0;
+    int flag;
+
 
 	/*Enquanto o programa está ativo, este laço é executado,
 	onde são executadas as ações ecessárias de interação entre cliente e servidor.
@@ -101,10 +107,6 @@ int main(int argc, char const *argv[]){
 	enviamos uma mensagem de encerramento do programa e encerramos o laço.*/
 
 	while(1){
-
-		if(flag == 1){
-			break;
-		}
 
 		//variável que guarda o descritor de artigo do stdin
 	    int fd_max = STDIN_FILENO;
@@ -130,16 +132,18 @@ int main(int argc, char const *argv[]){
 		if( FD_ISSET(STDIN_FILENO, &read_fds )){
 	    	fscanf(stdin,"%[^\n]%*c",msg_send);
 	    	msg_send[strlen(msg_send)] = 0;
-	    	int offset = 0;
 			int msg_size;
-	    	int flag;
 
 			//Tratamento de '\' enviada por terminal
 	    	if(msg_send[0] == '\\'){
 	    		flag = commands(msg_send+1);
 	    		if(flag == 1){
-	    			close(sock);
 	    			break;
+	    		}
+	    		else if(flag == 2){
+	    			valread = send(sock , "\\ping\0", strlen("\\ping\0")+1, 0);
+	    			ping_flag = 1;
+	    			time(&start);
 	    		}
 	    	}
 
@@ -148,47 +152,73 @@ int main(int argc, char const *argv[]){
 		    	if(msg_size < msg_max_size){
 					memcpy(buffer,msg_send+offset,msg_size);
 		    		buffer[msg_size] = '\0';
-		    		sleep(0.01); //dorme por 50 milissegundos
 		    		valread = send(sock , buffer, msg_size+1, 0);
 		    		break;
 		    	}
 		    	else{
 		    		memcpy(buffer,msg_send+offset,msg_max_size-1);
 		    		buffer[msg_max_size-1] = '\0';
-		    		sleep(0.01);
 		    		valread = send(sock , buffer, msg_max_size, 0);
 		    	}
 
 		    }
 		}
 
-		//Bloco que checa a presença de mais dados para serem recebidos através do recv()
+
+	    //Bloco que checa a presença de mais dados para serem recebidos através do recv()
 	    if( FD_ISSET(sock, &read_fds)){
-	    
-	        valread = recv(sock , msg_recv, 4096, 0);
 
-			//checagem de desconexão
-	        if(valread == 0){
-	        	printf("%s desconectou, triste né meu filho?\n", nome);
-	        	break;
-	        }
-
-			//exibição da mensagem
-	        else{
-	        	if(msg_count == 0){
-	        		strcpy(nome,msg_recv);
-	        	}
+        	valread = recv(sock , msg_recv, 4096, 0);
+        	//checagem de desconexão
+        	if(valread == 0){
+        		printf("%s desconectou, triste né meu filho?\n", nome);
+        		break;
+        	}
+        	else{
+        		if(msg_count == 0){
+        			strcpy(nome,msg_recv);
+					printf("\n\tNome definido!\n\n");	
+        		}
 	        	else{
-	        		printf("%s: %s\n",nome, msg_recv);
+	        		if(msg_recv[0] == '\\'){
+	        			flag = commands(msg_recv+1);
+	        			//tratamento de ping
+	        			if(flag == 2){
+	        				if(ping_flag == 0){
+	        					valread = send(sock ,"\\ping\0", strlen("\\ping\0")+1, 0);
+	        					printf("%s pingou você\n", nome);
+	        					ping_flag = 2;
+	        				}
+	        				else if(ping_flag == 1){
+	        					time(&end);
+	        					printf("Ping feito com sucesso, tempo demorado: %lf\n", difftime(end,start));
+	        					ping_flag = 0;
+	        				}
+	        			}
+	        		}
+	        		//exibição da mensagem
+	        		else{
+	        			printf("%s: %s\n",nome, msg_recv);
+	        		}
 	        	}
-	        	msg_count++;
-	        }
-	    }
+        		msg_count++;
+        	}
+        }
 	}
 
 	close(sock);
+	free(buffer);
 	free(msg_recv);
 	free(msg_send);
 
     return 0; 
-} 
+}
+
+/* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
+	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
+void sighandler(int signum){
+	printf("Programa interrompido, saindo do programa... (%d)", signum);
+	send(sock, "SAINDO DO PROGRAMA....", strlen("SAINDO DO PROGRAMA....")+1, 0);
+	close(sock);
+	exit(1);
+}
