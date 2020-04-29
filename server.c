@@ -1,10 +1,9 @@
 // Server side C/C++ program to demonstrate Socket programming
 
 //TRABALHO DE REDES
-//MATHEUS STEIGENBERG POPULIM - 10734710
-//BRUNO GAZONI - 7585037
-//BRUNO BALDISSERA
-
+//MATHEUS STEIGENBERG POPULIM 	- 10734710
+//BRUNO GAZONI 			- 7585037
+//BRUNO BALDISSERA		- 10724351	
 
 //Esse código é potencialmente periogoso e deve ser manipulado com cuidado, altos níveis de ceticismo e ironia.
 // Licença para redistribuição: NDCEM 4.1 -> Ninguém Deveria Copiar Essa Merda
@@ -20,15 +19,13 @@
 #include <pthread.h>
 #define PORT 1337
 
-//Esta é a flag que determina se o processo do servidor sofreu interrupção ou não. É inicializada com 0 (falso).
-volatile sig_atomic_t int_flag = 0;
+//Aqui declaramos função chamada quando recebe-se um sinal de interrupção.
+void sighandler(int);
 
-//Aqui temos a função que atribui 1 (verdadeiro) para a flag de interrupção.
-void set_int_flag(int sig){ //SUa chamada pode ser feita assíncronamente
-	int_flag = 1;
-}
+//Declaramos globalmente o socket
+int sock;
 
-int comands(char* word){
+int commands(char* word){
 	if(strcmp(word,"exit") == 0){
 		return 1;
 	}
@@ -49,8 +46,8 @@ int comands(char* word){
 
 int main(int argc, char const *argv[]){
 	//Tratamos aqui os sinais de interrupção (SIGINT ou SIGPIPE), para os quais é chamada a função que atribui a flag de interrupção.
-	signal(SIGINT, set_int_flag);
-	signal(SIGPIPE, set_int_flag);
+	signal(SIGINT, sighandler);
+	signal(SIGPIPE, sighandler);
 
 	int server_fd, sock, valread; 
 	struct sockaddr_in address; 
@@ -63,49 +60,50 @@ int main(int argc, char const *argv[]){
 	    	exit(EXIT_FAILURE); 
 	} 
    
-	// Forcefully attaching socket to the port 8080 
+	// Configuramos as opções do socket
 	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) { 
 		perror("setsockopt"); 
     		exit(EXIT_FAILURE); 
 	}
 
 	address.sin_family = AF_INET; 
-	address.sin_addr.s_addr = INADDR_ANY; 
+	address.sin_addr.s_addr = INADDR_ANY;
+	// Ligamos o socket à porta 1337 
 	address.sin_port = htons( PORT ); 
    
-	// Forcefully attaching socket to the port 8080 
+	// Fazemos o bind do socket ao endereço correto
 	if (bind(server_fd, (struct sockaddr *)&address, sizeof(address))<0){ 
 	   	perror("bind failed"); 
     	exit(EXIT_FAILURE); 
 	}
 
+	// Marcamos o server_fd como o socket passivo para receber a conexão
 	if (listen(server_fd, 3) < 0){ 
     	perror("listen"); 
     	exit(EXIT_FAILURE); 
 	}
 
+	/*Extraimos aqui a primeira conexão válida dentre a lista de pendentes, criamos um novo socket
+	  com o mesmo protocolo e família de endereço do server_fd criado e alocamos um novo descritor de arquivo do
+	  socket, via a função accpet()*/
 	if(((sock = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0 )) { 
 		perror("accept"); 
 		exit(EXIT_FAILURE); 
 	}
 
-	//Comunicação:
+	// A comunicação: aqui estão as variáveis que representam cada mensagem enviada e recebida, e o buffer que tratará o tamanho delas, caso necessário.
 	char* msg_recv = malloc(sizeof(char)*4096);
 	char* msg_send = malloc(sizeof(char)*8192);
 	char* buffer = malloc(sizeof(char)*4096);
 	char nome[60];
 
-	// TAMANHO MÁXIMO DA MENSAGEM
+	// Tamanho máximo da mensagem
 	int msg_max_size = 10;
-
+	
+	// Representa um conjunto de descritores de arquivo (struct vem da biblioteca select.c)
 	fd_set read_fds;
 
 	int msg_count = 0;
-
-	/*Enquanto o programa está ativo, este laço é executado,
-	  onde são executadas as ações ecessárias de interação entre cliente e servidor.
- 	  A cada iteração verificamos se a flag de interrupção indica interrupção, e caso positivo, 
-	  enviamos uma mensagem de encerramento do programa e encerramos o laço.*/
 
 	printf("Conectado!\n");
 	
@@ -114,30 +112,26 @@ int main(int argc, char const *argv[]){
 
 	sleep(0.01);
 
+	/*Enquanto o programa está ativo, este laço é executado,
+	  onde são executadas as ações ecessárias de interação entre cliente e servidor.*/
 	while(1){
-		if(int_flag == 1){
-			break;
-		}
-
-		// SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE 
 		int fd_max = STDIN_FILENO;
 
-	    	/* Set the bits for the file descriptors you want to wait on. */
+	    	/* Configura os bits para os descritores de arquivos. */
 	    	FD_ZERO(&read_fds);
 	    	FD_SET(STDIN_FILENO, &read_fds);
 	    	FD_SET(sock, &read_fds);
 
-	    	/* The select call needs to know the highest bit you set. */    
+	    	/* Selecionamos o maior bit configurado para ser usado na função select abaixo. */    
 	    	if( sock > fd_max ){
 	    		fd_max = sock; 
 	 		}
 
-	    	/* Wait for any of the file descriptors to have data. */
+	    	/* Aqui se espera até que um dos descritores de arquivo tenham dados (não sejam nulos), para depois continuar a comunicação. */
 	    	if (select(fd_max + 1, &read_fds, NULL, NULL, NULL) == -1){
 	      		perror("select: ");
 	      		exit(1);
 	    	}
-
 
 		if( FD_ISSET(STDIN_FILENO, &read_fds )){
 	    	fscanf(stdin,"%[^\n]%*c",msg_send);
@@ -147,7 +141,7 @@ int main(int argc, char const *argv[]){
 			int msg_size;
 	    	int flag;
 	    	if(msg_send[0] == '\\'){
-	    		flag = comands(msg_send+1);
+	    		flag = commands(msg_send+1);
 	    		if(flag == 1){
 	    			close(sock);
 	    			break;
@@ -192,10 +186,21 @@ int main(int argc, char const *argv[]){
 	        }
 	    }
 	}
-	
+
+	// Fechamos o socket e liberamos a memória alocada para as variáveis
 	close(sock);
 	free(msg_recv);
 	free(msg_send);
+	free(buffer);
 
-    return 0;
+    	return 0;
+}
+
+/* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
+	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
+void sighandler(int signum){
+	printf("Programa interrompido, saindo do programa... (%d)", signum);
+	send(sock, "SAINDO DO PROGRAMA....", strlen("SAINDO DO PROGRAMA....")+1, 0);
+	close(sock);
+	exit(1);
 }

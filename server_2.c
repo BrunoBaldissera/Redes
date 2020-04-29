@@ -37,16 +37,16 @@ int main(int argc, char const *argv[]){
    		exit(EXIT_FAILURE); 
    	} 
        
-	// Ligando o socket à porta 1337 
+	//Configuramos as opções do socket
   	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) { 
   		perror("setsockopt"); 
   	     	exit(EXIT_FAILURE); 
   	}
     	address.sin_family = AF_INET; 
     	address.sin_addr.s_addr = INADDR_ANY; 
+	// Ligando o socket à porta 1337 
     	address.sin_port = htons( PORT ); 
-       
-    	// Fazemos o bind do socket ao endereço correto
+    	
     	if (bind(server_fd, (struct sockaddr *)&address, sizeof(address))<0){ 
     	   	perror("bind failed"); 
     	   	exit(EXIT_FAILURE); 
@@ -75,20 +75,19 @@ int main(int argc, char const *argv[]){
 	/*Enquanto o programa está ativo, este laço é executado,
 	  onde são executadas as ações ecessárias de interação entre cliente e servidor.*/
 	while(1){
-		// SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE SERVER SIDE 
 		int fd_max = STDIN_FILENO;
 
-	    	/* Set the bits for the file descriptors you want to wait on. */
+	    	/* Configura os buts para os descritores de arquivos*/
 	    	FD_ZERO(&read_fds);
 	    	FD_SET(STDIN_FILENO, &read_fds);
 	    	FD_SET(sock, &read_fds);
 
-	    	/* The select call needs to know the highest bit you set. */    
+	    	/* Selecionamos o maior bit configurado para ser usado na função select abaixo.*/    
 	    	if( sock > fd_max ){
 	    		fd_max = sock; 
 	 	}
 
-	    	/* Wait for any of the file descriptors to have data. */
+	    	/* Aqui se espera até que um dos descritores de arquivo tenham dados (não sejam nulos), para depois continuar a comunicação */
 	    	if (select(fd_max + 1, &read_fds, NULL, NULL, NULL) == -1){
 	      		perror("select: ");
 	      		exit(1);
@@ -107,12 +106,12 @@ int main(int argc, char const *argv[]){
 		if( FD_ISSET(STDIN_FILENO, &read_fds )){
 		/* The user typed something.  Read it fgets or something.
 		   Then send the data to the server. */
-			fscanf(stdin,"%[^\n]%*c",msg_send);
+			fscanf(stdin,"%[^\n]%*c", msg_send);
 		    	msg_send[strlen(msg_send)] = 0;
 		    	valread = send(sock , msg_send, strlen(msg_send)+1, 0);
 		}
 	}
-
+	// Fechamos o socket e liberamos os espaços
 	close(sock);
 	free(msg_recv);
 	free(msg_send);
@@ -120,7 +119,8 @@ int main(int argc, char const *argv[]){
     	return 0;
 }
 
-//Sua chamada pode ser feita assíncronamente
+/* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
+	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
 void sighandler(int signum){
 	printf("Programa interrompido, saindo do programa... (%d)", signum);
 	send(sock, "SAINDO DO PROGRAMA....", strlen("SAINDO DO PROGRAMA....")+1, 0);
