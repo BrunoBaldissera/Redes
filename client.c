@@ -23,6 +23,7 @@ void set_flag(int sig){
 
 //Comandos que podem ser enviados via terminal para operar o chat
 int commands(char* word){
+	
 	if(strcmp(word,"exit") == 0){
 		return 1;
 	}
@@ -32,12 +33,7 @@ int commands(char* word){
 	if(strcmp(word,"sair") == 0){
 		return 1;
 	}
-	if(strcmp(word,"abandonar o navio") == 0){
-		return 1;
-	}
-	if(strcmp(word,"sebo nas canelas") == 0){
-		return 1;
-	}
+
 	return 0;
 }
    
