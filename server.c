@@ -20,9 +20,6 @@
 #include <pthread.h>
 #define PORT 1337
 
-
-
-
 //Esta é a flag que determina se o processo do servidor sofreu interrupção ou não. É inicializada com 0 (falso).
 volatile sig_atomic_t int_flag = 0;
 
@@ -51,7 +48,7 @@ int comands(char* word){
 }
 
 int main(int argc, char const *argv[]){
-	//Tratamos aqui os sinais de interrupção ou SIGPIPE, para os quais é chamada a função que atribui a flag de interrupção.
+	//Tratamos aqui os sinais de interrupção (SIGINT ou SIGPIPE), para os quais é chamada a função que atribui a flag de interrupção.
 	signal(SIGINT, set_int_flag);
 	signal(SIGPIPE, set_int_flag);
 
@@ -60,7 +57,7 @@ int main(int argc, char const *argv[]){
 	int opt = 1; 
 	int addrlen = sizeof(address);
    
-	// Creating socket file descriptor 
+	// Aqui criamos o descritor de arquivo do socket 
 	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0){ 
 		perror("socket failed"); 
 	    	exit(EXIT_FAILURE); 
@@ -69,7 +66,7 @@ int main(int argc, char const *argv[]){
 	// Forcefully attaching socket to the port 8080 
 	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) { 
 		perror("setsockopt"); 
-    	exit(EXIT_FAILURE); 
+    		exit(EXIT_FAILURE); 
 	}
 
 	address.sin_family = AF_INET; 
