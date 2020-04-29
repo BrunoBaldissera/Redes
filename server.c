@@ -104,11 +104,12 @@ int main(int argc, char const *argv[]){
 	fd_set read_fds;
 
 	int msg_count = 0;
+	int nome_def = 1;
 
-	printf("Conectado!\n");
+	printf("Conectado!\n\n");
 	
-	printf("A primeira mensagem que você enviar será o como o outro usuário visualizará seu nome.\n");
-	printf("Limite do tamanho da mensagem: %d. Ou seja, mensagens maiores que %d serão truncadas\n", msg_max_size, msg_max_size-1);
+	printf("\tLimite do tamanho da mensagem: %d. Ou seja, mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
+	printf("\tDefina aqui o seu nome a ser visto pelo cliente seguido da tecla enter:\n\n");
 
 	sleep(0.01);
 
@@ -147,10 +148,11 @@ int main(int argc, char const *argv[]){
 	    			break;
 	    		}
 	    	}
-		    for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
-		    	msg_size = strlen(msg_send+offset);
+
+		for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
+			msg_size = strlen(msg_send+offset);
 		    	if(msg_size < msg_max_size){
-					memcpy(buffer,msg_send+offset,msg_size);
+				memcpy(buffer,msg_send+offset,msg_size);
 		    		buffer[msg_size] = '\0';
 		    		sleep(0.01); //dorme por 50 milissegundos
 		    		valread = send(sock , buffer, msg_size+1, 0);
@@ -167,24 +169,29 @@ int main(int argc, char const *argv[]){
 		}
 
 
-	    /* After select, if an fd's bit is set, then there is data to read. */      
-	    if( FD_ISSET(sock, &read_fds)){
-	        /* There is data waiting on your socket.  Read it with recv(). */
-	        valread = recv(sock , msg_recv, 4096, 0);
-	        if(valread == 0){
-	        	printf("%s desconectou, triste né meu filho?\n", nome);
-	        	break;
-	        }
-	        else{
-	        	if(msg_count == 0){
-	        		strcpy(nome,msg_recv);
+	    	/* After select, if an fd's bit is set, then there is data to read. */      
+	    	if( FD_ISSET(sock, &read_fds)){
+	        	/* There is data waiting on your socket.  Read it with recv(). */
+	        	valread = recv(sock , msg_recv, 4096, 0);
+	        	if(valread == 0){
+	        		printf("%s desconectou, triste né meu filho?\n", nome);
+	        		break;
 	        	}
 	        	else{
-	        		printf("%s: %s\n",nome, msg_recv);
+	        		if(msg_count == 0){
+	        			strcpy(nome,msg_recv);
+	        		}
+	        		else{
+	        			printf("%s: %s\n",nome, msg_recv);
+	        		}
+	        		msg_count++;
 	        	}
-	        	msg_count++;
-	        }
-	    }
+		
+	    	}
+		if(nome_def){
+			nome_def = 0;
+			printf("\n\tNome definido!\n\n");	
+		}
 	}
 
 	// Fechamos o socket e liberamos a memória alocada para as variáveis
