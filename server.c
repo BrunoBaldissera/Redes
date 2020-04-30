@@ -1,34 +1,34 @@
-// Server side C/C++ program to demonstrate Socket programming
+//TRABALHO DE REDES - LADO DO CLIENTE
+//MATHEUS STEIGENBERG POPULIM -  10734710
+//BRUNO GAZONI - 7585037
+//BRUNO BALDISSERA - 10724351
 
-//TRABALHO DE REDES
-//MATHEUS STEIGENBERG POPULIM 	- 10734710
-//BRUNO GAZONI 			- 7585037
-//BRUNO BALDISSERA		- 10724351	
-
-//Esse código é potencialmente periogoso e deve ser manipulado com cuidado, altos níveis de ceticismo e ironia.
-// Licença para redistribuição: NDCEM 4.1 -> Ninguém Deveria Copiar Essa Merda
-
-#include <unistd.h> 
-#include <stdio.h> 
-#include <sys/socket.h> 
-#include <stdlib.h> 
-#include <netinet/in.h> 
-#include <string.h> 
-#include <stdlib.h>
+#include <arpa/inet.h> 
+#include <errno.h>
 #include <signal.h>
-#include <pthread.h>
+#include <stdio.h> 
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h> 
+#include <sys/time.h>
 #include <time.h>
-#define PORT 1337
+#include <unistd.h>
+#define PORT 1337 
 
-//Aqui declaramos função chamada quando recebe-se um sinal de interrupção.
-void sighandler(int);
 
-//Declaramos globalmente o socket
-int sock;
+/* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
+	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
+void sighandler(int signum){
+	printf("Programa interrompido, saindo do programa... (%d)", signum);
+	exit(1);
+}
 
 int commands(char* word){
 	if(strcmp(word,"ping") == 0){
 		return 2;
+	}
+	if(strcmp(word,"rping") == 0){
+		return 3;
 	}
 	if(strcmp(word,"exit") == 0){
 		return 1;
@@ -48,27 +48,26 @@ int main(int argc, char const *argv[]){
 	signal(SIGPIPE, sighandler);
 
 	int server_fd, sock, valread; 
-	struct sockaddr_in address; 
+	struct sockaddr_in address;
 	int opt = 1; 
 	int addrlen = sizeof(address);
    
 	// Aqui criamos o descritor de arquivo do socket 
 	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0){ 
 		perror("socket failed"); 
-	    	exit(EXIT_FAILURE); 
-	} 
-   
+	    exit(EXIT_FAILURE); 
+	}
+
 	// Configuramos as opções do socket
 	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) { 
 		perror("setsockopt"); 
-    		exit(EXIT_FAILURE); 
+    	exit(EXIT_FAILURE); 
 	}
 
 	address.sin_family = AF_INET; 
 	address.sin_addr.s_addr = INADDR_ANY;
-	// Ligamos o socket à porta 1337 
-	address.sin_port = htons( PORT ); 
-   
+	address.sin_port = htons( PORT ); // Ligamos o socket à porta 1337
+
 	// Fazemos o bind do socket ao endereço correto
 	if (bind(server_fd, (struct sockaddr *)&address, sizeof(address))<0){ 
 	   	perror("bind failed"); 
@@ -88,40 +87,31 @@ int main(int argc, char const *argv[]){
 		perror("accept"); 
 		exit(EXIT_FAILURE); 
 	}
-
 	printf("Conectado!\n\n");
 
-	// A comunicação: aqui estão as variáveis que representam cada mensagem enviada e recebida, e o buffer que tratará o tamanho delas, caso necessário.
+	//Variáveis para armazenar mensagens
 	char* msg_recv = malloc(sizeof(char)*4096);
-	char* msg_send = malloc(sizeof(char)*8192);
+	char* msg_send = malloc(sizeof(char)*4096);
 	char* buffer = malloc(sizeof(char)*4096);
 	char nome[60];
-
-	// Tamanho máximo da mensagem
-	int msg_max_size = 10;
 	
-	// Representa um conjunto de descritores de arquivo (struct vem da biblioteca select.c)
+	int msg_max_size = 1024;//Tamanho máximo da mensagem enviada em um único bloco de texto
+	
+	//Demux dos descritores de arquivo prontos para serem lidos
 	fd_set read_fds;
-
-	int msg_count = 0;
-	int nome_def = 1;
 
 	time_t start, end;
 	struct timeval timeout_time;
 	timeout_time.tv_sec = 3;
 	timeout_time.tv_usec = 0;
 
-	int ping_flag = 0;
-
-
-
-	int flag;
+	int flag, ping_flag = 0, msg_count = 0, nome_def = 0;
 	
-	printf("\tLimite do tamanho da mensagem: %d. Ou seja, mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
-	printf("\tDefina aqui o seu nome a ser visto pelo cliente seguido da tecla enter:\n\n");
+	printf("Limite do tamanho da mensagem: %d. Mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
+	printf("Defina aqui o seu nome a ser visto pelo cliente seguido da tecla enter:\n\n");
 
 	/*Enquanto o programa está ativo, este laço é executado,
-	  onde são executadas as ações ecessárias de interação entre cliente e servidor.*/
+	  onde são executadas as ações necessárias de interação entre cliente e servidor.*/
 	while(1){
 		int fd_max = STDIN_FILENO;
 
@@ -157,29 +147,34 @@ int main(int argc, char const *argv[]){
 	    			time(&start);
 	    		}
 	    	}
-
-			for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
-				msg_size = strlen(msg_send+offset);
-		    	if(msg_size < msg_max_size){
-				memcpy(buffer,msg_send+offset,msg_size);
-		    		buffer[msg_size] = '\0';
-		    		valread = send(sock , buffer, msg_size+1, 0);
-		    		break;
-		    	}
-		    	else{
-		    		memcpy(buffer,msg_send+offset,msg_max_size-1);
-		    		buffer[msg_max_size-1] = '\0';
-		    		valread = send(sock , buffer, msg_max_size, 0);
-		    	}
-
-			}
+	    	else{
+	    		if(nome_def == 0){
+					nome_def = 1;
+					printf("\n\tNome definido!\n\n");	
+				}
+				for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
+					msg_size = strlen(msg_send+offset);
+			    	if(msg_size < msg_max_size){
+					memcpy(buffer,msg_send+offset,msg_size);
+			    		buffer[msg_size] = '\0';
+			    		valread = send(sock , buffer, msg_size+1, 0);
+			    		break;
+			    	}
+			    	else{
+			    		memcpy(buffer,msg_send+offset,msg_max_size-1);
+			    		buffer[msg_max_size-1] = '\0';
+			    		valread = send(sock , buffer, msg_max_size, 0);
+			    	}
+				}
+	    	}
 		}
 
 
-	    	/* After select, if an fd's bit is set, then there is data to read. */      
+	    //Bloco que checa a presença de mais dados para serem recebidos através do recv()      
     	if( FD_ISSET(sock, &read_fds)){
         	/* There is data waiting on your socket.  Read it with recv(). */
         	valread = recv(sock , msg_recv, 4096, 0);
+        	//checagem de desconexão
         	if(valread == 0){
         		printf("%s desconectou, triste né meu filho?\n", nome);
         		break;
@@ -187,32 +182,30 @@ int main(int argc, char const *argv[]){
         	else{
         		if(msg_count == 0){
         			strcpy(nome,msg_recv);
-					printf("\n\tNome definido!\n\n");	
         		}
 	        	else{
 	        		if(msg_recv[0] == '\\'){
+	        			//tratamento de ping
 	        			flag = commands(msg_recv+1);
-	        			if(flag == 2){
-	        				if(ping_flag == 0){
-	        					valread = send(sock ,"\\ping\0", strlen("\\ping\0")+1, 0);
-	        					printf("%s pingou você\n", nome);
-	        					ping_flag = 2;
-	        				}
-	        				else if(ping_flag == 1){
-	        					time(&end);
-	        					printf("Ping feito com sucesso, tempo demorado: %lf\n", difftime(end,start));
-	        					ping_flag = 0;
-	        				}
+	        			if(flag == 2 && ping_flag == 0){
+	        				printf("%s pingou você\n", nome);
+	        				valread = send(sock ,"\\rping\0", strlen("\\rping\0")+1, 0);
+	        			}
+	        			else if(flag == 3 && ping_flag == 1){
+	        				time(&end);
+	        				printf("Ping feito com sucesso, tempo demorado: %lf\n", difftime(end,start));
+	        				ping_flag = 0;
 	        			}
 	        		}
+	        		//exibição da mensagem
 	        		else{
 	        			printf("%s: %s\n",nome, msg_recv);
 	        		}
 	        	}
         		msg_count++;
         	}
-	
-    	}
+        }
+
 	}
 
 	// Fechamos o socket e liberamos a memória alocada para as variáveis
@@ -222,13 +215,4 @@ int main(int argc, char const *argv[]){
 	free(buffer);
 
     return 0;
-}
-
-/* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
-	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
-void sighandler(int signum){
-	printf("Programa interrompido, saindo do programa... (%d)", signum);
-	send(sock, "SAINDO DO PROGRAMA....", strlen("SAINDO DO PROGRAMA....")+1, 0);
-	close(sock);
-	exit(1);
 }

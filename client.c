@@ -3,28 +3,32 @@
 //BRUNO GAZONI - 7585037
 //BRUNO BALDISSERA - 10724351
 
-#include <stdio.h> 
-#include <sys/socket.h> 
 #include <arpa/inet.h> 
-#include <unistd.h>
-#include <string.h>
 #include <errno.h>
-#include <stdlib.h>
 #include <signal.h>
+#include <stdio.h> 
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h> 
 #include <sys/time.h>
 #include <time.h>
+#include <unistd.h>
 #define PORT 1337 
 
-//Aqui declaramos função chamada quando recebe-se um sinal de interrupção.
-void sighandler(int);
-
-//Declaramos globalmente o socket
-int sock;
+/* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
+	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
+void sighandler(int signum){
+	printf("Programa interrompido, saindo do programa... (%d)", signum);
+	exit(1);
+}
 
 //Comandos que podem ser enviados via terminal para operar o chat
 int commands(char* word){
 	if(strcmp(word,"ping") == 0){
 		return 2;
+	}
+	if(strcmp(word,"rping") == 0){
+		return 3;
 	}
 	if(strcmp(word,"exit") == 0){
 		return 1;
@@ -43,16 +47,15 @@ int main(int argc, char const *argv[]){
 	//Funções para finalizar o programa via flag setada por 1, redirecionada aos sinais do SO
 	signal(SIGINT, sighandler);
 	signal(SIGPIPE, sighandler);
-
-    int sock = 0, valread;
+	int valread, sock;
 	struct sockaddr_in serv_addr;
 
 	//Criação do socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-    { 
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) { 
         printf("\n Socket creation error \n"); 
         return -1; 
-    } 
+    }
+   	printf("%d\n", sock);
    
     //Configuração do socket
     serv_addr.sin_family = AF_INET; 
@@ -70,44 +73,32 @@ int main(int argc, char const *argv[]){
         printf("\nConnection Failed \n"); 
         return -1; 
     }
+	printf("Conectado!\n\n");
 
-	//==== Comunicação ====//
-	
 	//Variáveis para armazenar mensagens
 	char* msg_recv = malloc(sizeof(char)*4096);
 	char* msg_send = malloc(sizeof(char)*4096);
 	char* buffer = malloc(sizeof(char)*4096);
 	char nome[60];
-
-	//Tamanho máximo da mensagem enviada em um único bloco de texto
-	int msg_max_size = 1024;
-
+	
+	int msg_max_size = 1024;//Tamanho máximo da mensagem enviada em um único bloco de texto
+	
 	//Demux dos descritores de arquivo prontos para serem lidos
 	fd_set read_fds;
 
-	int msg_count = 0;
-
-	printf("Conectado!\n");
-	printf("A primeira mensagem que você enviar será como o outro usuário visualizará seu nome.\n");
-	printf("Limite do tamanho da mensagem: %d. Ou seja, mensagens maiores que %d serão truncadas\n", msg_max_size, msg_max_size-1);
-
-	//Timeouts para tempo de processamento do terminal
 	time_t start, end;
 	struct timeval timeout_time;
-    timeout_time.tv_sec = 3;
-    timeout_time.tv_usec = 0;
+	timeout_time.tv_sec = 3;
+	timeout_time.tv_usec = 0;
 
-    int ping_flag = 0;
-    int flag;
-
+	int flag, ping_flag = 0, msg_count = 0, nome_def = 0;
+	
+	printf("Limite do tamanho da mensagem: %d. Mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
+	printf("Defina aqui o seu nome a ser visto pelo cliente seguido da tecla enter:\n\n");
 
 	/*Enquanto o programa está ativo, este laço é executado,
-	onde são executadas as ações ecessárias de interação entre cliente e servidor.
- 	A cada iteração verificamos se a flag de interrupção indica interrupção, e caso positivo, 
-	enviamos uma mensagem de encerramento do programa e encerramos o laço.*/
-
+	  onde são executadas as ações necessárias de interação entre cliente e servidor.*/
 	while(1){
-
 		//variável que guarda o descritor de artigo do stdin
 	    int fd_max = STDIN_FILENO;
 
@@ -134,6 +125,7 @@ int main(int argc, char const *argv[]){
 	    	msg_send[strlen(msg_send)] = 0;
 			int msg_size;
 
+
 			//Tratamento de '\' enviada por terminal
 	    	if(msg_send[0] == '\\'){
 	    		flag = commands(msg_send+1);
@@ -146,28 +138,32 @@ int main(int argc, char const *argv[]){
 	    			time(&start);
 	    		}
 	    	}
-
-		    for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
-		    	msg_size = strlen(msg_send+offset);
-		    	if(msg_size < msg_max_size){
-					memcpy(buffer,msg_send+offset,msg_size);
-		    		buffer[msg_size] = '\0';
-		    		valread = send(sock , buffer, msg_size+1, 0);
-		    		break;
-		    	}
-		    	else{
-		    		memcpy(buffer,msg_send+offset,msg_max_size-1);
-		    		buffer[msg_max_size-1] = '\0';
-		    		valread = send(sock , buffer, msg_max_size, 0);
-		    	}
-
-		    }
+	    	else{
+	    		if(nome_def == 0){
+					nome_def = 1;
+					printf("\n\tNome definido!\n\n");	
+				}
+			    for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
+			    	msg_size = strlen(msg_send+offset);
+			    	if(msg_size < msg_max_size){
+						memcpy(buffer,msg_send+offset,msg_size);
+			    		buffer[msg_size] = '\0';
+			    		valread = send(sock , buffer, msg_size+1, 0);
+			    		break;
+			    	}
+			    	else{
+			    		memcpy(buffer,msg_send+offset,msg_max_size-1);
+			    		buffer[msg_max_size-1] = '\0';
+			    		valread = send(sock , buffer, msg_max_size, 0);
+			    	}
+			    }
+	    	}
 		}
 
 
-	    //Bloco que checa a presença de mais dados para serem recebidos através do recv()
-	    if( FD_ISSET(sock, &read_fds)){
-
+	    //Bloco que checa a presença de mais dados para serem recebidos através do recv()      
+    	if( FD_ISSET(sock, &read_fds)){
+        	/* There is data waiting on your socket.  Read it with recv(). */
         	valread = recv(sock , msg_recv, 4096, 0);
         	//checagem de desconexão
         	if(valread == 0){
@@ -177,23 +173,20 @@ int main(int argc, char const *argv[]){
         	else{
         		if(msg_count == 0){
         			strcpy(nome,msg_recv);
-					printf("\n\tNome definido!\n\n");	
         		}
 	        	else{
 	        		if(msg_recv[0] == '\\'){
-	        			flag = commands(msg_recv+1);
 	        			//tratamento de ping
-	        			if(flag == 2){
-	        				if(ping_flag == 0){
-	        					valread = send(sock ,"\\ping\0", strlen("\\ping\0")+1, 0);
-	        					printf("%s pingou você\n", nome);
-	        					ping_flag = 2;
-	        				}
-	        				else if(ping_flag == 1){
-	        					time(&end);
-	        					printf("Ping feito com sucesso, tempo demorado: %lf\n", difftime(end,start));
-	        					ping_flag = 0;
-	        				}
+	        			flag = commands(msg_recv+1);
+	        			if(flag == 2 && ping_flag == 0){
+	        				printf("%s pingou você\n", nome);
+	        				valread = send(sock ,"\\rping\0", strlen("\\rping\0")+1, 0);
+	        				ping_flag = 2;
+	        			}
+	        			else if(flag == 3 && ping_flag == 1){
+	        				time(&end);
+	        				printf("Ping feito com sucesso, tempo demorado: %lf\n", difftime(end,start));
+	        				ping_flag = 0;
 	        			}
 	        		}
 	        		//exibição da mensagem
@@ -212,13 +205,4 @@ int main(int argc, char const *argv[]){
 	free(msg_send);
 
     return 0; 
-}
-
-/* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
-	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
-void sighandler(int signum){
-	printf("Programa interrompido, saindo do programa... (%d)", signum);
-	send(sock, "SAINDO DO PROGRAMA....", strlen("SAINDO DO PROGRAMA....")+1, 0);
-	close(sock);
-	exit(1);
 }
