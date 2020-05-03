@@ -11,7 +11,6 @@
 #include <string.h>
 #include <sys/socket.h> 
 #include <sys/time.h>
-#include <time.h>
 #include <unistd.h>
 #define PORT 1337 
 
@@ -20,6 +19,13 @@
 void sighandler(int signum){
 	printf("Programa interrompido, saindo do programa... (%d)", signum);
 	exit(1);
+}
+
+//Função que facilita o cálculo do tempo percorrido para executar um ping
+double timeInSeconds() {
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    return (((double)tv.tv_sec))+((double)tv.tv_usec/1000000.0);
 }
 
 //Comandos que podem ser enviados via terminal para operar o chat
@@ -55,7 +61,6 @@ int main(int argc, char const *argv[]){
         printf("\n Socket creation error \n"); 
         return -1; 
     }
-   	printf("%d\n", sock);
    
     //Configuração do socket
     serv_addr.sin_family = AF_INET; 
@@ -70,7 +75,7 @@ int main(int argc, char const *argv[]){
 
 	//Conexão com o socket
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        printf("\nConnection Failed \n"); 
+        printf("\nConexão falhou. Execute o servidor primeiro.\n"); 
         return -1; 
     }
 	printf("Conectado!\n\n");
@@ -79,14 +84,14 @@ int main(int argc, char const *argv[]){
 	char* msg_recv = malloc(sizeof(char)*4096);
 	char* msg_send = malloc(sizeof(char)*4096);
 	char* buffer = malloc(sizeof(char)*4096);
-	char nome[60];
+	char nome[60] = "desconhecido";
 	
 	int msg_max_size = 1024;//Tamanho máximo da mensagem enviada em um único bloco de texto
 	
 	//Demux dos descritores de arquivo prontos para serem lidos
 	fd_set read_fds;
 
-	time_t start, end;
+	double start, end;
 	struct timeval timeout_time;
 	timeout_time.tv_sec = 3;
 	timeout_time.tv_usec = 0;
@@ -135,7 +140,7 @@ int main(int argc, char const *argv[]){
 	    		else if(flag == 2){
 	    			valread = send(sock , "\\ping\0", strlen("\\ping\0")+1, 0);
 	    			ping_flag = 1;
-	    			time(&start);
+	    			start = timeInSeconds();
 	    		}
 	    	}
 	    	else{
@@ -143,6 +148,9 @@ int main(int argc, char const *argv[]){
 					nome_def = 1;
 					printf("\n\tNome definido!\n\n");	
 				}
+
+				
+				//quebra das mensagens com tamanho maior que o definido pela variável msg_max_size
 			    for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
 			    	msg_size = strlen(msg_send+offset);
 			    	if(msg_size < msg_max_size){
@@ -181,11 +189,10 @@ int main(int argc, char const *argv[]){
 	        			if(flag == 2 && ping_flag == 0){
 	        				printf("%s pingou você\n", nome);
 	        				valread = send(sock ,"\\rping\0", strlen("\\rping\0")+1, 0);
-	        				ping_flag = 2;
 	        			}
 	        			else if(flag == 3 && ping_flag == 1){
-	        				time(&end);
-	        				printf("Ping feito com sucesso, tempo demorado: %lf\n", difftime(end,start));
+	        				end = timeInSeconds();
+	        				printf("Ping feito com sucesso, tempo demorado: %lf segundos\n", end-start);
 	        				ping_flag = 0;
 	        			}
 	        		}
