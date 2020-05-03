@@ -1,4 +1,4 @@
-TRABALHO DE REDES - SCC0142 1S2020
+TRABALHO DE REDES - SCC0142 1º Semestre 2020
 Parte 1
 
 BRUNO BALDISSERA - 10724351
@@ -8,15 +8,18 @@ MATHEUS STEIGENBERG POPULIM -  10734710
 
 Programa desenvolvido em versões debian based do Linux (debian, mint e ubuntu), utilizando GCC 7.5.0.
 
+
+
 Instruções para compilar e executar:
 
-Compilar servidor: comp_servidor
-Compilar cliente: comp_cliente
+Compilar servidor e cliente: Executar no terminal "make compila".
 
-Executar servidor: roda_servidor
-Executar cliente: roda_cliente
+Executar servidor: Executar no terminal "make roda_servidor".
+Executar cliente: Executar no terminal "make roda_cliente".
 
 Execute o servidor primeiro, em seguida o cliente, e então comecem a trocar mensagens.
+
+
 
 Ao executar, a primeira mensagem inserida será usada pelo outro terminal para definir seu nome.
 
