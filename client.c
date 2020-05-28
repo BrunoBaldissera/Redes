@@ -16,14 +16,14 @@
 
 /* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
 	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
-void quit(int signum){
-	printf("Programa interrompido, saindo do programa... (%d)", signum);
+void quit(int num){
+	printf("Programa finalizado. (%d)\n", num);
 	exit(1);
 }
 
 void ignore(){
 	//ignora
-	printf("Para sair do programa use o comando /quit ou CTRL + D\n");
+	printf("\nPara sair do programa use o comando /quit ou CTRL + D\n");
 }
 
 //Função que facilita o cálculo do tempo percorrido para executar um ping
@@ -58,7 +58,7 @@ int commands(char* word){
    
 int main(int argc, char const *argv[]){
 	int flag;
-	
+	char exit_buffer[256];	
 	//tratando CTRL + C
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN)
     signal(SIGINT, ignore);
@@ -66,14 +66,14 @@ int main(int argc, char const *argv[]){
 	char input[40];
 	printf("Bem vindo a casa do caralho. o que deseja fazer?\n");
 	while(1){
-		scanf("%s",input);
-		if(input[0] == '/'){
+		if (feof(stdin)) quit(2);
+		fgets(input, sizeof input, stdin);
+		if (input[0] == '/'){
 			flag = commands(input+1);
 			if(flag == 4){
 				break;
 			}
 		}
-
 	}
 
 	int valread, sock;
@@ -126,7 +126,7 @@ int main(int argc, char const *argv[]){
 
 	/*Enquanto o programa está ativo, este laço é executado,
 	  onde são executadas as ações necessárias de interação entre cliente e servidor.*/
-	while(1){
+	while ( fgets( exit_buffer, sizeof exit_buffer, stdin ) != NULL){
 		//variável que guarda o descritor de artigo do stdin
 	    int fd_max = STDIN_FILENO;
 
@@ -233,6 +233,8 @@ int main(int argc, char const *argv[]){
 	free(buffer);
 	free(msg_recv);
 	free(msg_send);
+
+	quit(2);
 
     return 0; 
 }

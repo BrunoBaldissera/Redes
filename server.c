@@ -17,14 +17,14 @@
 
 /* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
 	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
-void quit(int signum){
-	printf("Programa interrompido, saindo do programa... (%d)", signum);
+void quit(int num){
+	printf("Programa interrompido, saindo do programa... (%d)", num);
 	exit(1);
 }
 
 void ignore(){
 	//ignora
-	printf("Para sair do programa use o comando /quit ou CTRL + D\n");
+	printf("\nPara sair do programa use o comando /quit ou CTRL + D\n");
 }
 
 //Função que facilita o cálculo do tempo percorrido para executar um ping
@@ -88,13 +88,6 @@ int main(int argc, char const *argv[]){
 
 	printf("Esperando os clientes conectarem...\n");
 
-
-
-
-
-
-
-
 	/*Extraimos aqui a primeira conexão válida dentre a lista de pendentes, criamos um novo socket
 	  com o mesmo protocolo e família de endereço do server_fd criado e alocamos um novo descritor de arquivo do
 	  socket, via a função accpet()*/
@@ -102,7 +95,6 @@ int main(int argc, char const *argv[]){
 		perror("accept"); 
 		exit(EXIT_FAILURE); 
 	}
-	printf("");
 
 	//Variáveis para armazenar mensagens
 	char* msg_recv = malloc(sizeof(char)*4096);
@@ -125,11 +117,11 @@ int main(int argc, char const *argv[]){
 	printf("Limite do tamanho da mensagem: %d. Mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
 	printf("Defina aqui o seu nome a ser visto pelo cliente seguido da tecla enter:\n\n");
 
+	char exit_buffer[256];
 	/*Enquanto o programa está ativo, este laço é executado,
 	  onde são executadas as ações necessárias de interação entre cliente e servidor.*/
-	while(1){
+	while (fgets(exit_buffer, sizeof exit_buffer, stdin ) != NULL ){
 		int fd_max = STDIN_FILENO;
-
 	    	/* Configura os bits para os descritores de arquivos. */
 	    	FD_ZERO(&read_fds);
 	    	FD_SET(STDIN_FILENO, &read_fds);
@@ -222,7 +214,6 @@ int main(int argc, char const *argv[]){
         		msg_count++;
         	}
         }
-
 	}
 
 	// Fechamos o socket e liberamos a memória alocada para as variáveis
@@ -230,6 +221,8 @@ int main(int argc, char const *argv[]){
 	free(msg_recv);
 	free(msg_send);
 	free(buffer);
+
+	quit(2);
 
     return 0;
 }
