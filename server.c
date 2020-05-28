@@ -33,16 +33,7 @@ int commands(char* word){
 	if(strcmp(word,"ping") == 0){
 		return 2;
 	}
-	if(strcmp(word,"rping") == 0){
-		return 3;
-	}
-	if(strcmp(word,"exit") == 0){
-		return 1;
-	}
 	if(strcmp(word,"quit") == 0){
-		return 1;
-	}
-	if(strcmp(word,"sair") == 0){
 		return 1;
 	}
 	return 0;
@@ -150,7 +141,7 @@ int main(int argc, char const *argv[]){
 	    			break;
 	    		}
 	    		else if(flag == 2){
-	    			valread = send(sock , "\\ping\0", strlen("\\ping\0")+1, 0);
+	    			valread = send(sock , "/ping\0", strlen("/ping\0")+1, 0);
 	    			ping_flag = 1;
 	    			start = timeInSeconds();
 	    		}
@@ -199,11 +190,11 @@ int main(int argc, char const *argv[]){
 	        			flag = commands(msg_recv+1);
 	        			if(flag == 2 && ping_flag == 0){
 	        				printf("%s pingou você\n", nome);
-	        				valread = send(sock ,"\\rping\0", strlen("\\rping\0")+1, 0);
+	        				valread = send(sock ,"/rping\0", strlen("/rping\0")+1, 0);
 	        			}
 	        			else if(flag == 3 && ping_flag == 1){
 	    					end = timeInSeconds();
-	        				printf("Ping feito com sucesso, tempo demorado: %lf segundos\n", end-start);
+	        				printf("pong (tempo demorado: %lf segundos)\n", end-start);
 	        				ping_flag = 0;
 	        			}
 	        		}
