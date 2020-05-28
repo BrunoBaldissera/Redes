@@ -39,7 +39,6 @@ int commands(char* word){
 	if(strcmp(word,"quit") == 0){
 		return 1;
 	}
-
 	return 0;
 }
    
@@ -58,7 +57,6 @@ int main(int argc, char const *argv[]){
 			break;
 		}
 	}
-
 
 	//Funções para finalizar o programa via flag setada por 1, redirecionada aos sinais do SO
 	signal(SIGINT, sighandler);
@@ -106,7 +104,7 @@ int main(int argc, char const *argv[]){
 	timeout_time.tv_sec = 3;
 	timeout_time.tv_usec = 0;
 
-	int flag, ping_flag = 0, msg_count = 0, nome_def = 0;
+	int ping_flag = 0, msg_count = 0, nome_def = 0;
 	
 	printf("Limite do tamanho da mensagem: %d. Mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
 	printf("Defina aqui o seu nome a ser visto pelos outros seguido da tecla enter:\n\n");
