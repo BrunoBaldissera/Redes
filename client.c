@@ -16,9 +16,14 @@
 
 /* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
 	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
-void sighandler(int signum){
+void quit(int signum){
 	printf("Programa interrompido, saindo do programa... (%d)", signum);
 	exit(1);
+}
+
+void ignore(){
+	//ignora
+	printf("Para sair do programa use o comando /quit ou CTRL + D\n");
 }
 
 //Função que facilita o cálculo do tempo percorrido para executar um ping
@@ -43,8 +48,11 @@ int commands(char* word){
 }
    
 int main(int argc, char const *argv[]){
-
 	int flag;
+	
+	//tratando CTRL + C
+	if (signal(SIGINT, SIG_IGN) != SIG_IGN)
+    signal(SIGINT, ignore);
 
 	char input[40];
 	printf("Bem vindo a casa do caralho. o que deseja fazer?\n");
@@ -58,9 +66,6 @@ int main(int argc, char const *argv[]){
 		}
 	}
 
-	//Funções para finalizar o programa via flag setada por 1, redirecionada aos sinais do SO
-	signal(SIGINT, sighandler);
-	signal(SIGPIPE, sighandler);
 	int valread, sock;
 	struct sockaddr_in serv_addr;
 
