@@ -135,7 +135,7 @@ int main(int argc, char const *argv[]){
 	    	//printf("%d\n", (int)strlen(msg_send));
 	    	msg_send[strlen(msg_send)] = 0;
 			int msg_size;
-	    	if(msg_send[0] == '\\'){
+	    	if(msg_send[0] == '/'){
 	    		flag = commands(msg_send+1);
 	    		if(flag == 1){
 	    			break;
