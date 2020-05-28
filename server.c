@@ -40,6 +40,9 @@ int commands(char* word){
 }
 
 int main(int argc, char const *argv[]){
+	
+	printf("Bem vindo ao server 3000!\n");
+
 	//Tratamos aqui os sinais de interrupção (SIGINT ou SIGPIPE), para os quais é chamada a função que atribui a flag de interrupção.
 	signal(SIGINT, sighandler);
 	signal(SIGPIPE, sighandler);
@@ -77,7 +80,14 @@ int main(int argc, char const *argv[]){
     	exit(EXIT_FAILURE); 
 	}
 
-	printf("Esperando o cliente conectar...\n");
+	printf("Esperando os clientes conectarem...\n");
+
+
+
+
+
+
+
 
 	/*Extraimos aqui a primeira conexão válida dentre a lista de pendentes, criamos um novo socket
 	  com o mesmo protocolo e família de endereço do server_fd criado e alocamos um novo descritor de arquivo do
@@ -86,7 +96,7 @@ int main(int argc, char const *argv[]){
 		perror("accept"); 
 		exit(EXIT_FAILURE); 
 	}
-	printf("Conectado!\n\n");
+	printf("");
 
 	//Variáveis para armazenar mensagens
 	char* msg_recv = malloc(sizeof(char)*4096);
@@ -185,7 +195,7 @@ int main(int argc, char const *argv[]){
         			strcpy(nome,msg_recv);
         		}
 	        	else{
-	        		if(msg_recv[0] == '\\'){
+	        		if(msg_recv[0] == '/'){
 	        			//tratamento de ping
 	        			flag = commands(msg_recv+1);
 	        			if(flag == 2 && ping_flag == 0){

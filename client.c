@@ -36,8 +36,17 @@ int commands(char* word){
 	if(strcmp(word,"rping") == 0){
 		return 3;
 	}
+	if(strcmp(word,"exit") == 0){
+		return 1;
+	}
 	if(strcmp(word,"quit") == 0){
 		return 1;
+	}
+	if(strcmp(word,"sair") == 0){
+		return 1;
+	}
+	if(strcmp(word,"connect") == 0){
+		return 4;
 	}
 	return 0;
 }
@@ -52,11 +61,13 @@ int main(int argc, char const *argv[]){
 		scanf("%s",input);
 		if(input[0] == '/'){
 			flag = commands(input+1);
+			if(flag == 4){
+				break;
+			}
 		}
-		if(flag == 4){
-			break;
-		}
+
 	}
+
 
 	//Funções para finalizar o programa via flag setada por 1, redirecionada aos sinais do SO
 	signal(SIGINT, sighandler);
