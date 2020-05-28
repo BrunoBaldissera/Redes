@@ -45,6 +45,21 @@ int commands(char* word){
    
 int main(int argc, char const *argv[]){
 
+	int flag;
+
+	char input[40];
+	printf("Bem vindo a casa do caralho. o que deseja fazer?\n");
+	while(1){
+		scanf("%s",input);
+		if(input[0] == '/'){
+			flag = commands(input+1);
+		}
+		if(flag == 4){
+			break;
+		}
+	}
+
+
 	//Funções para finalizar o programa via flag setada por 1, redirecionada aos sinais do SO
 	signal(SIGINT, sighandler);
 	signal(SIGPIPE, sighandler);
@@ -94,7 +109,7 @@ int main(int argc, char const *argv[]){
 	int flag, ping_flag = 0, msg_count = 0, nome_def = 0;
 	
 	printf("Limite do tamanho da mensagem: %d. Mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
-	printf("Defina aqui o seu nome a ser visto pelo cliente seguido da tecla enter:\n\n");
+	printf("Defina aqui o seu nome a ser visto pelos outros seguido da tecla enter:\n\n");
 
 	/*Enquanto o programa está ativo, este laço é executado,
 	  onde são executadas as ações necessárias de interação entre cliente e servidor.*/
@@ -127,13 +142,13 @@ int main(int argc, char const *argv[]){
 
 
 			//Tratamento de '\' enviada por terminal
-	    	if(msg_send[0] == '\\'){
+	    	if(msg_send[0] == '/'){
 	    		flag = commands(msg_send+1);
 	    		if(flag == 1){
 	    			break;
 	    		}
 	    		else if(flag == 2){
-	    			valread = send(sock , "\\ping\0", strlen("\\ping\0")+1, 0);
+	    			valread = send(sock , "/ping\0", strlen("/ping\0")+1, 0);
 	    			ping_flag = 1;
 	    			start = timeInSeconds();
 	    		}
@@ -178,12 +193,12 @@ int main(int argc, char const *argv[]){
         			strcpy(nome,msg_recv);
         		}
 	        	else{
-	        		if(msg_recv[0] == '\\'){
+	        		if(msg_recv[0] == '/'){
 	        			//tratamento de ping
 	        			flag = commands(msg_recv+1);
 	        			if(flag == 2 && ping_flag == 0){
 	        				printf("%s pingou você\n", nome);
-	        				valread = send(sock ,"\\rping\0", strlen("\\rping\0")+1, 0);
+	        				valread = send(sock ,"/rping\0", strlen("/rping\0")+1, 0);
 	        			}
 	        			else if(flag == 3 && ping_flag == 1){
 	        				end = timeInSeconds();
