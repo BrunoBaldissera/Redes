@@ -80,7 +80,7 @@ void send_msg_handler() {
 			break;
 	    } 
 	    else{
-	    	sprintf(buffer, "%s\n", message);
+	    	sprintf(buffer, "%s", message);
 	    	send(sockfd, buffer, strlen(buffer), 0);
 	    }
 		bzero(message, LENGTH);
@@ -133,18 +133,31 @@ int main(int argc, char **argv){
   	server_addr.sin_addr.s_addr = inet_addr(ip);
   	server_addr.sin_port = htons(porta);
 
+  	char comando[50] = {};
+
+  	printf("Olá %s! Bem vindo ao IRC. Para conectar ao servidor, digite /connect.\n", name);
+  	fflush(stdout);
+  	while(1){
+  		fgets(comando, 40, stdin);
+  		if(strcmp(comando,"/connect")){
+  			break;
+  		}
+  	}
+
+
+
 
   	// Connect to Server
   	int err = connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
   	if (err == -1) {
-		printf("ERROR: connect\n");
+		printf("Erro: connect. Inicie o servidor\n");
 		return EXIT_FAILURE;
 	}
 
 	// Send name
 	send(sockfd, name, 40, 0);
 
-	printf("=== WELCOME TO THE CHATROOM ===\n");
+	printf("=== BEM VINDO À SALA DE CHAT ===\n");
 
 	pthread_t recv_msg_thread;
   	if(pthread_create(&recv_msg_thread, NULL, (void *) recv_msg_handler, NULL) != 0){

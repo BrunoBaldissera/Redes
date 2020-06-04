@@ -38,10 +38,7 @@ client_t *clients[MAX_CLIENTS];
 
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void str_overwrite_stdout() {
-    printf("\r%s", "> ");
-    fflush(stdout);
-}
+
 
 void print_client_addr(struct sockaddr_in addr){
     printf("%d.%d.%d.%d",
@@ -120,8 +117,8 @@ int login(void *arg){
 	char message[50] = "Digite o login.";
 	char buffer[50];
 
-	char LOGIN_SERVER[50] = "admin\n";
-	char SENHA_SERVER[50] = "admin\n";
+	char LOGIN_SERVER[50] = "admin";
+	char SENHA_SERVER[50] = "admin";
 
 	send(cli->sockfd,message,strlen(message),0);
 	recv(cli->sockfd, buffer, 40, 0);
@@ -173,7 +170,8 @@ void *handle_client(void *arg){
 		aut = login(arg);
 		if(aut == 1){
 			sprintf(buff_out, "%s entrou no chat", cli->name);
-			printf("%s", buff_out);
+			printf("%s\n", buff_out);
+			fflush(stdout);
 			leave_flag = send_message(buff_out, cli->uid);
 		}
 		else{
@@ -191,7 +189,7 @@ void *handle_client(void *arg){
 		if (receive > 0){
 			if(strlen(buff_in) > 0){
 				if(strcmp(buff_in,"/ping") == 0){
-					send(cli->sockfd,"pong",strlen("pong\0"),0);
+					send(cli->sockfd,"SERVER: pong",strlen("SERVER: pong\0"),0);
 				}
 				else{
 					sprintf(buff_out,"%s: %s\n", cli->name, buff_in);
@@ -201,7 +199,7 @@ void *handle_client(void *arg){
 					leave_flag = send_message(buff_out, cli->uid);
 				}
 			}
-		} else if (receive == 0 || strcmp(buff_out, "exit") == 0){
+		} else if (receive == 0 || strcmp(buff_out, "/exit") == 0){
 			sprintf(buff_out, "%s has left\n", cli->name);
 			printf("%s", buff_out);
 			send_message(buff_out, cli->uid);
