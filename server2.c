@@ -92,11 +92,9 @@ void queue_remove(int uid){
 }
 
 /* Send message to all clients except sender */
-void send_message(char *s, int uid){
+int send_message(char *s, int uid){
 	pthread_mutex_lock(&clients_mutex);
 	int send_ret = 0;
-	char* ack_send = "ack\0";
-	char* ack_recv[4];
 	int trials;
 
 	for(int i=0; i<MAX_CLIENTS; ++i){
@@ -107,14 +105,13 @@ void send_message(char *s, int uid){
 					trials++;
 				}
 				if(trials == 5){
-					perror("ERROR: write to descriptor failed");
-					break;
+					send_ret = 1;
 				}
 				//recv(clients[i]->sockfd, ack_recv, 4,0);
 			}
 		}
 	}
-
+	return send_ret;
 	pthread_mutex_unlock(&clients_mutex);
 }
 
@@ -177,7 +174,7 @@ void *handle_client(void *arg){
 		if(aut == 1){
 			sprintf(buff_out, "%s entrou no chat", cli->name);
 			printf("%s", buff_out);
-			send_message(buff_out, cli->uid);
+			leave_flag = send_message(buff_out, cli->uid);
 		}
 		else{
 			leave_flag = 1;
@@ -201,7 +198,7 @@ void *handle_client(void *arg){
 					str_trim_lf(buff_out, strlen(buff_out));
 					
 					printf("%s\n", buff_out);
-					send_message(buff_out, cli->uid);
+					leave_flag = send_message(buff_out, cli->uid);
 				}
 			}
 		} else if (receive == 0 || strcmp(buff_out, "exit") == 0){
