@@ -1,11 +1,8 @@
-//https://www.youtube.com/watch?v=fNerEo6Lstw
-
 //TRABALHO DE REDES - LADO DO SERVER
 //MATHEUS STEIGENBERG POPULIM -  10734710
 //BRUNO GAZONI - 7585037
 //BRUNO BALDISSERA - 10724351
 
-// A partir de agora, vamos mexer em cima disso
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -26,7 +23,7 @@
 static _Atomic unsigned int cli_count = 0;
 static int uid = 10;
 
-/* Client structure */
+/* Estrutura do cliente */
 typedef struct{
 	struct sockaddr_in address;
 	int sockfd;
@@ -34,13 +31,14 @@ typedef struct{
 	char name[32];
 } client_t;
 
+//Dados dos clientes são armazenados nesse vetor
 client_t *clients[MAX_CLIENTS];
 
+//mutex das threads
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
-
-void print_client_addr(struct sockaddr_in addr){
+//imprime endereço de ip do cliente
+void print_adress(struct sockaddr_in addr){
     printf("%d.%d.%d.%d",
         addr.sin_addr.s_addr & 0xff,
         (addr.sin_addr.s_addr & 0xff00) >> 8,
@@ -48,6 +46,7 @@ void print_client_addr(struct sockaddr_in addr){
         (addr.sin_addr.s_addr & 0xff000000) >> 24);
 }
 
+//substitui \n por \0
 void str_trim_lf (char* arr, int length) {
 	int i;
   	for (i = 0; i < length; i++) { // trim \n
@@ -59,7 +58,7 @@ void str_trim_lf (char* arr, int length) {
 }
 
 
-/* Add clients to queue */
+/* Adiciona clientes à fila de clientes */
 void queue_add(client_t *cl){
 	pthread_mutex_lock(&clients_mutex);
 
@@ -73,7 +72,7 @@ void queue_add(client_t *cl){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-/* Remove clients to queue */
+/* Remove clientes da fila de clientes */
 void queue_remove(int uid){
 	pthread_mutex_lock(&clients_mutex);
 
@@ -88,30 +87,30 @@ void queue_remove(int uid){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-/* Send message to all clients except sender */
+/* Envia mensagem para todos os clientes(incluindo o remetente, como dito na especificação) */
 int send_message(char *s, int uid){
-	pthread_mutex_lock(&clients_mutex);
 	int send_ret = 0;
 	int trials;
+	pthread_mutex_lock(&clients_mutex); //trava as threads para acessar as variáveis globais sem problemas
 
 	for(int i=0; i<MAX_CLIENTS; ++i){
 		if(clients[i] != NULL){
-			if(clients[i]->uid != uid){
-				trials = 0;
-				while(send(clients[i]->sockfd, s, strlen(s),0) < 0 && trials < 5){
-					trials++;
-				}
-				if(trials == 5){
-					send_ret = 1;
-				}
-				//recv(clients[i]->sockfd, ack_recv, 4,0);
+			while(send(clients[i]->sockfd, s, strlen(s),0) < 0 && trials < 5){ // caso o cliente não receba, são feitas 5 tentativas
+				trials++;
 			}
+			if(trials == 5){
+				send_ret = 1;
+			}
+			//recv(clients[i]->sockfd, ack_recv, 4,0);
 		}
 	}
-	return send_ret;
 	pthread_mutex_unlock(&clients_mutex);
+	return send_ret;
 }
 
+// Trata o login com os clientes 
+// LOGIN = admin
+// SENHA = admin
 int login(void *arg){
 	client_t *cli = (client_t *)arg;
 	char message[50] = "Digite o login.";
@@ -146,12 +145,11 @@ int login(void *arg){
 
 }
 
-/* Handle all communication with the client */
+/* Lida com toda a comunicação com o cliente */
 void *handle_client(void *arg){
 	char buff_in[BUFFER_SZ];
 	char buff_out[BUFFER_SZ];
 	char name[40];
-	char senha[40];
 	int leave_flag = 0;
 	int aut = 1;
 
@@ -166,7 +164,7 @@ void *handle_client(void *arg){
 	}
 	else{
 		strcpy(cli->name, name);
-		// se o cara realmente entrar no chat
+		// se o cliente entrar no chat
 		aut = login(arg);
 		if(aut == 1){
 			sprintf(buff_out, "%s entrou no chat", cli->name);
@@ -213,7 +211,7 @@ void *handle_client(void *arg){
 		bzero(buff_in, BUFFER_SZ);
 	}
 
-  /* Delete client from queue and yield thread */
+  /* Remove o cliente da fila, e libera a thread */
 	close(cli->sockfd);
   	queue_remove(cli->uid);
   	free(cli);
@@ -225,6 +223,7 @@ void *handle_client(void *arg){
 
 int main(int argc, char **argv){
 
+	//configuração
 	char *ip = "127.0.0.1";
 	int port = 1337;
 	int option = 1;
@@ -233,14 +232,13 @@ int main(int argc, char **argv){
   	struct sockaddr_in cli_addr;
   	pthread_t tid;
 
+
 	//Configurações do Socket
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = inet_addr(ip);
 	serv_addr.sin_port = htons(port);
 
-	//Ignorar sinais de parada
-	signal(SIGPIPE, SIG_IGN);
 
 	if(setsockopt(listenfd, SOL_SOCKET,(SO_REUSEPORT | SO_REUSEADDR),(char*)&option,sizeof(option)) < 0){
 		perror("ERRO: setsockopt");
@@ -268,7 +266,7 @@ int main(int argc, char **argv){
 		/* Checa se o máximo de clientes foi atingido*/
 		if((cli_count + 1) == MAX_CLIENTS){
 			printf("O server está cheio,conexão rejeitada com");
-			print_client_addr(cli_addr);
+			print_adress(cli_addr);
 			printf(":%d\n", cli_addr.sin_port);
 			close(connfd);
 			continue;

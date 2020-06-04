@@ -1,7 +1,3 @@
-
-//https://www.youtube.com/watch?v=fNerEo6Lstw
-
-
 //TRABALHO DE REDES - LADO DO CLIENTE
 //MATHEUS STEIGENBERG POPULIM -  10734710
 //BRUNO GAZONI - 7585037
@@ -18,32 +14,22 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define LENGTH 2048
+#define LENGTH 20000 //tamanho máximo do buffer de mensagens digitadas pelo usuário.
+//Esse buffer será repartido em trechos de 4096 bytes na função send_msg_handler
+
 
 // Global variables
+//flag pra sair do programa
 volatile sig_atomic_t flag = 0;
+//socket
 int sockfd = 0;
-char name[40];
 
 void ignore(){
 	//ignora
 	printf("\nPara sair do programa use o comando /quit ou CTRL + D\n");
 }
 
-int commands(char* word){
-	if(strcmp(word,"connect") == 0){
-		return 1;
-	}
-	if(strcmp(word,"quit") == 0){
-		return 2;
-	}
-	if(strcmp(word,"ping") == 0){
-		return 3;
-	}
-	return 0;
-}
-
-void catch_ctrl_c_and_exit(int sig) {
+void flag_sair(int sig) {
     flag = 1;
 }
 
@@ -52,8 +38,7 @@ void str_overwrite_stdout() {
   	fflush(stdout);
 }
 
-
-
+//elimina o \n da string e o substitui por um \0
 void str_trim_lf (char* arr, int length) {
   	int i;
   	for (i = 0; i < length; i++) { // trim \n
@@ -64,53 +49,82 @@ void str_trim_lf (char* arr, int length) {
   	}
 }
 
-
+//responsável por mandar mensagens
 void send_msg_handler() {
-  	char message[LENGTH] = {};
-	char buffer[LENGTH + 32] = {};
+  	char message[LENGTH];
+	char buffer[4096];
 
   	while(1) {
+  		if(flag == 1){
+  			break;
+  		}
 	  	str_overwrite_stdout();
 	    fgets(message, LENGTH, stdin);
-	    if(feof(stdin)){
+	    if(feof(stdin)){ //comandos de saída (EOF)
 	    	break;
 	    }
 		str_trim_lf(message, LENGTH);
-	    if (strcmp(message, "/exit") == 0) {
+	    if (strcmp(message, "/exit") == 0) { //comandos de saída
 			break;
-	    } 
-	    else{
-	    	sprintf(buffer, "%s", message);
-	    	send(sockfd, buffer, strlen(buffer), 0);
 	    }
+	    if (strcmp(message, "/quit") == 0) { //comandos de saída
+			break;
+	    }
+	    else{
+	    	//Caso a mensagem seja maior que 4096 bytes, ela é enviada em pedaços
+	    	for(int offset = 0; strlen(message+offset) > 0; offset += 4095){
+			    int msg_size = strlen(message+offset);
+			    if(msg_size < 4096){
+					memcpy(buffer,message+offset,msg_size);
+			    	buffer[msg_size] = '\0';
+			    	send(sockfd, buffer, strlen(buffer), 0);
+			    	break;
+			    }
+			    else{
+			    	memcpy(buffer,message+offset,4095);
+			    	buffer[4095] = '\0';
+			    	send(sockfd, buffer, strlen(buffer), 0);
+			    }
+			}
+	    }
+	    //zera os buffers
 		bzero(message, LENGTH);
-	    bzero(buffer, LENGTH + 32);
+	    bzero(buffer, 4096);
   	}
-  	catch_ctrl_c_and_exit(2);
+  	//seta a flag para 1, que finaliza o programa
+  	flag_sair(2);
+  	pthread_detach(pthread_self());
 }
 
+//responsável por receber mensagens
 void recv_msg_handler() {
-	//char* acknowledge = "ack\0";
-	char message[LENGTH] = {};
+	char message[4096];
   	while (1) {
-		int receive = recv(sockfd, message, LENGTH, 0);
+  		if(flag == 1){
+  			break;
+  		}
+  		//recebe a mensagem e a imprime
+		int receive = recv(sockfd, message, 4096, 0);
     	if (receive > 0) {
-    		//send(sockfd, acknowledge, 4, 0);
       		printf("%s\n", message);
-      		str_overwrite_stdout();
+      		str_overwrite_stdout();// fflush
     	} 	
-    	else if (receive == 0) {
+    	else if (receive == 0) {// caso o recv seja 0, sai do programa
 			break;
     	}
+    	//zera o buffer
 		memset(message, 0, sizeof(message));
   	}
+  	flag_sair(3);
+  	pthread_detach(pthread_self());
 }
 
 int main(int argc, char **argv){
-
-	char* ip = "127.0.0.1";
+	char name[40];
+	char ip[20] = "127.0.0.1";
 	int porta = 1337;
 
+	//ignora CTRL C
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN){
     	signal(SIGINT, ignore);
 	}
@@ -133,47 +147,50 @@ int main(int argc, char **argv){
   	server_addr.sin_addr.s_addr = inet_addr(ip);
   	server_addr.sin_port = htons(porta);
 
-  	char comando[50] = {};
+  	char comando[50];
 
-  	printf("Olá %s! Bem vindo ao IRC. Para conectar ao servidor, digite /connect.\n", name);
-  	fflush(stdout);
+  	printf("Olá %s! Bem vindo ao IRC. Para conectar ao servidor, digite /connect\n", name);
   	while(1){
+  		if(feof(stdin)){
+  			return EXIT_FAILURE;
+  		}
   		fgets(comando, 40, stdin);
-  		if(strcmp(comando,"/connect")){
+  		str_trim_lf(comando,strlen(comando));
+  		if(strcmp(comando,"/connect") == 0){
   			break;
+  		}
+  		if(strcmp(comando,"/quit") == 0){
+  			return EXIT_FAILURE;
   		}
   	}
 
-
-
-
-  	// Connect to Server
+  	// Conectando ao servidor
   	int err = connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
   	if (err == -1) {
 		printf("Erro: connect. Inicie o servidor\n");
 		return EXIT_FAILURE;
 	}
 
-	// Send name
-	send(sockfd, name, 40, 0);
+	printf("=== BEM VINDO À SALA DE CHAT, POR QUESTÕES DE SEGURANÇA, FAÇA LOGIN POR FAVOR ===\n");
 
-	printf("=== BEM VINDO À SALA DE CHAT ===\n");
+	// Enviando o nome para o servidor
+	send(sockfd, name, 40, 0);
 
 	pthread_t recv_msg_thread;
   	if(pthread_create(&recv_msg_thread, NULL, (void *) recv_msg_handler, NULL) != 0){
-		printf("ERROR: pthread\n");
+		printf("ERRO: pthread\n");
 		return EXIT_FAILURE;
 	}
 
 	pthread_t send_msg_thread;
   	if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
-		printf("ERROR: pthread\n");
+		printf("ERRO: pthread\n");
     	return EXIT_FAILURE;
     }
 
 	while (1){
 		if(flag){
-			printf("\nBye\n");
+			printf("\nTchau\n");
 			break;
     	}
     	sleep(0.5);
