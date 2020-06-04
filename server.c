@@ -1,228 +1,294 @@
-//TRABALHO DE REDES - LADO DO CLIENTE
+//https://www.youtube.com/watch?v=fNerEo6Lstw
+
+//TRABALHO DE REDES - LADO DO SERVER
 //MATHEUS STEIGENBERG POPULIM -  10734710
 //BRUNO GAZONI - 7585037
 //BRUNO BALDISSERA - 10724351
 
-#include <arpa/inet.h> 
-#include <errno.h>
-#include <signal.h>
-#include <stdio.h> 
+// A partir de agora, vamos mexer em cima disso
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h> 
-#include <sys/time.h>
 #include <unistd.h>
-#define PORT 1337
+#include <errno.h>
+#include <string.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <signal.h>
 
 
-/* Essa função é chamada pela função signal (que por sua vez é chamada quando o programa recebe um sinal de interrupção)
-	e imprime tanto no terminal cliente quanto no servidor uma mensagem de saída antes de fechar o programa.*/ 
-void quit(int num){
-	printf("Programa interrompido, saindo do programa... (%d)", num);
-	exit(1);
-}
+#define MAX_CLIENTS 100
+#define BUFFER_SZ 2048
 
-void ignore(){
-	//ignora
-	printf("\nPara sair do programa use o comando /quit ou CTRL + D\n");
-}
+static _Atomic unsigned int cli_count = 0;
+static int uid = 10;
 
-//Função que facilita o cálculo do tempo percorrido para executar um ping
-double timeInSeconds() {
-    struct timeval tv;
-    gettimeofday(&tv,NULL);
-    return (((double)tv.tv_sec)*1)+((double)tv.tv_usec/1000000.0);
-}
-
-int commands(char* word){
-	if(strcmp(word,"ping") == 0){
-		return 2;
-	}
-	if(strcmp(word,"quit") == 0){
-		return 1;
-	}
-	return 0;
-}
-
-int main(int argc, char const *argv[]){
-	
-	printf("Bem vindo ao server 3000!\n");
-
-	//Tratamos aqui os sinais de interrupção (SIGINT ou SIGPIPE), para os quais é chamada a função que atribui a flag de interrupção.
-	if (signal(SIGINT, SIG_IGN) != SIG_IGN)
-    signal(SIGINT, ignore);
-
-
-	int server_fd, sock, valread; 
+/* Client structure */
+typedef struct{
 	struct sockaddr_in address;
-	int opt = 1; 
-	int addrlen = sizeof(address);
-   
-	// Aqui criamos o descritor de arquivo do socket 
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0){ 
-		perror("socket failed"); 
-	    exit(EXIT_FAILURE); 
+	int sockfd;
+	int uid;
+	char name[32];
+} client_t;
+
+client_t *clients[MAX_CLIENTS];
+
+pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void str_overwrite_stdout() {
+    printf("\r%s", "> ");
+    fflush(stdout);
+}
+
+void print_client_addr(struct sockaddr_in addr){
+    printf("%d.%d.%d.%d",
+        addr.sin_addr.s_addr & 0xff,
+        (addr.sin_addr.s_addr & 0xff00) >> 8,
+        (addr.sin_addr.s_addr & 0xff0000) >> 16,
+        (addr.sin_addr.s_addr & 0xff000000) >> 24);
+}
+
+void str_trim_lf (char* arr, int length) {
+	int i;
+  	for (i = 0; i < length; i++) { // trim \n
+    	if (arr[i] == '\n') {
+      		arr[i] = '\0';
+      		break;
+    	}
+  	}
+}
+
+
+/* Add clients to queue */
+void queue_add(client_t *cl){
+	pthread_mutex_lock(&clients_mutex);
+
+	for(int i=0; i < MAX_CLIENTS; ++i){
+		if(clients[i] == NULL){
+			clients[i] = cl;
+			break;
+		}
 	}
 
-	// Configuramos as opções do socket
-	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) { 
-		perror("setsockopt"); 
-    	exit(EXIT_FAILURE); 
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+/* Remove clients to queue */
+void queue_remove(int uid){
+	pthread_mutex_lock(&clients_mutex);
+
+	for(int i=0; i < MAX_CLIENTS; ++i){
+		if(clients[i] != NULL){
+			if(clients[i]->uid == uid){
+				clients[i] = NULL;
+				break;
+			}
+		}
 	}
+	pthread_mutex_unlock(&clients_mutex);
+}
 
-	address.sin_family = AF_INET; 
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons( PORT ); // Ligamos o socket à porta 1337
+/* Send message to all clients except sender */
+int send_message(char *s, int uid){
+	pthread_mutex_lock(&clients_mutex);
+	int send_ret = 0;
+	int trials;
 
-	// Fazemos o bind do socket ao endereço correto
-	if (bind(server_fd, (struct sockaddr *)&address, sizeof(address))<0){ 
-	   	perror("bind failed"); 
-    	exit(EXIT_FAILURE); 
-	}
-
-	// Marcamos o server_fd como o socket passivo para receber a conexão
-	if (listen(server_fd, 3) < 0){ 
-    	perror("listen"); 
-    	exit(EXIT_FAILURE); 
-	}
-
-	printf("Esperando os clientes conectarem...\n");
-
-	/*Extraimos aqui a primeira conexão válida dentre a lista de pendentes, criamos um novo socket
-	  com o mesmo protocolo e família de endereço do server_fd criado e alocamos um novo descritor de arquivo do
-	  socket, via a função accpet()*/
-	if(((sock = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0 )) { 
-		perror("accept"); 
-		exit(EXIT_FAILURE); 
-	}
-
-	//Variáveis para armazenar mensagens
-	char* msg_recv = malloc(sizeof(char)*4096);
-	char* msg_send = malloc(sizeof(char)*4096);
-	char* buffer = malloc(sizeof(char)*4096);
-	char nome[60] = "desconhecido";
-	
-	int msg_max_size = 1024;//Tamanho máximo da mensagem enviada em um único bloco de texto
-	
-	//Demux dos descritores de arquivo prontos para serem lidos
-	fd_set read_fds;
-
-	double start, end;
-	struct timeval timeout_time;
-	timeout_time.tv_sec = 3;
-	timeout_time.tv_usec = 0;
-
-	int flag, ping_flag = 0, msg_count = 0, nome_def = 0;
-	
-	printf("Limite do tamanho da mensagem: %d. Mensagens maiores que %d serão truncadas\n\n", msg_max_size, msg_max_size-1);
-	printf("Defina aqui o seu nome a ser visto pelo cliente seguido da tecla enter:\n\n");
-
-	char exit_buffer[256];
-	/*Enquanto o programa está ativo, este laço é executado,
-	  onde são executadas as ações necessárias de interação entre cliente e servidor.*/
-	while (fgets(exit_buffer, sizeof exit_buffer, stdin ) != NULL ){
-		int fd_max = STDIN_FILENO;
-	    	/* Configura os bits para os descritores de arquivos. */
-	    	FD_ZERO(&read_fds);
-	    	FD_SET(STDIN_FILENO, &read_fds);
-	    	FD_SET(sock, &read_fds);
-
-	    	/* Selecionamos o maior bit configurado para ser usado na função select abaixo. */    
-	    	if( sock > fd_max ){
-	    		fd_max = sock; 
-	 		}
-
-	    	/* Aqui se espera até que um dos descritores de arquivo tenham dados (não sejam nulos), para depois continuar a comunicação. */
-	    	if (select(fd_max + 1, &read_fds, NULL, NULL, &timeout_time) == -1){
-	      		perror("select: ");
-	      		exit(1);
-	    	}
-
-		if( FD_ISSET(STDIN_FILENO, &read_fds )){
-	    	fscanf(stdin,"%[^\n]%*c",msg_send);
-	    	//printf("%d\n", (int)strlen(msg_send));
-	    	msg_send[strlen(msg_send)] = 0;
-			int msg_size;
-	    	if(msg_send[0] == '/'){
-	    		flag = commands(msg_send+1);
-	    		if(flag == 1){
-	    			break;
-	    		}
-	    		else if(flag == 2){
-	    			valread = send(sock , "/ping\0", strlen("/ping\0")+1, 0);
-	    			ping_flag = 1;
-	    			start = timeInSeconds();
-	    		}
-	    	}
-	    	else{
-	    		if(nome_def == 0){
-					nome_def = 1;
-					printf("\n\tNome definido!\n\n");	
+	for(int i=0; i<MAX_CLIENTS; ++i){
+		if(clients[i] != NULL){
+			if(clients[i]->uid != uid){
+				trials = 0;
+				while(send(clients[i]->sockfd, s, strlen(s),0) < 0 && trials < 5){
+					trials++;
 				}
-
-				//quebra das mensagens com tamanho maior que o definido pela variável msg_max_size
-				for(int offset = 0;strlen(msg_send+offset) > 0;offset += msg_max_size-1){
-					msg_size = strlen(msg_send+offset);
-			    	if(msg_size < msg_max_size){
-					memcpy(buffer,msg_send+offset,msg_size);
-			    		buffer[msg_size] = '\0';
-			    		valread = send(sock , buffer, msg_size+1, 0);
-			    		break;
-			    	}
-			    	else{
-			    		memcpy(buffer,msg_send+offset,msg_max_size-1);
-			    		buffer[msg_max_size-1] = '\0';
-			    		valread = send(sock , buffer, msg_max_size, 0);
-			    	}
+				if(trials == 5){
+					send_ret = 1;
 				}
-	    	}
+				//recv(clients[i]->sockfd, ack_recv, 4,0);
+			}
+		}
+	}
+	return send_ret;
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+int login(void *arg){
+	client_t *cli = (client_t *)arg;
+	char message[50] = "Digite o login.";
+	char buffer[50];
+
+	char LOGIN_SERVER[50] = "admin\n";
+	char SENHA_SERVER[50] = "admin\n";
+
+	send(cli->sockfd,message,strlen(message),0);
+	recv(cli->sockfd, buffer, 40, 0);
+
+	if(strcmp(buffer,LOGIN_SERVER) != 0){
+		strcpy(message,"Login incorreto.");
+		send(cli->sockfd,message,strlen(message),0);
+		return -1;
+	}
+	else{
+		strcpy(message,"Digite a senha.");
+		send(cli->sockfd,message,strlen(message),0);
+		recv(cli->sockfd, buffer, 40, 0);
+
+		if(strcmp(buffer,SENHA_SERVER) != 0){
+			strcpy(message,"Senha incorreta.");
+			send(cli->sockfd,message,strlen(message),0);
+			return -1;
+		}
+		else{
+			return 1;
 		}
 
-
-	    //Bloco que checa a presença de mais dados para serem recebidos através do recv()      
-    	if( FD_ISSET(sock, &read_fds)){
-        	/* There is data waiting on your socket.  Read it with recv(). */
-        	valread = recv(sock , msg_recv, 4096, 0);
-        	//checagem de desconexão
-        	if(valread == 0){
-        		printf("%s desconectou, triste né meu filho?\n", nome);
-        		break;
-        	}
-        	else{
-        		if(msg_count == 0){
-        			strcpy(nome,msg_recv);
-        		}
-	        	else{
-	        		if(msg_recv[0] == '/'){
-	        			//tratamento de ping
-	        			flag = commands(msg_recv+1);
-	        			if(flag == 2 && ping_flag == 0){
-	        				printf("%s pingou você\n", nome);
-	        				valread = send(sock ,"/rping\0", strlen("/rping\0")+1, 0);
-	        			}
-	        			else if(flag == 3 && ping_flag == 1){
-	    					end = timeInSeconds();
-	        				printf("pong (tempo demorado: %lf segundos)\n", end-start);
-	        				ping_flag = 0;
-	        			}
-	        		}
-	        		//exibição da mensagem
-	        		else{
-	        			printf("%s: %s\n",nome, msg_recv);
-	        		}
-	        	}
-        		msg_count++;
-        	}
-        }
 	}
 
-	// Fechamos o socket e liberamos a memória alocada para as variáveis
-	close(sock);
-	free(msg_recv);
-	free(msg_send);
-	free(buffer);
+}
 
-	quit(2);
+/* Handle all communication with the client */
+void *handle_client(void *arg){
+	char buff_in[BUFFER_SZ];
+	char buff_out[BUFFER_SZ];
+	char name[40];
+	char senha[40];
+	int leave_flag = 0;
+	int aut = 1;
 
-    return 0;
+
+	cli_count++;
+	client_t *cli = (client_t *)arg;
+
+	// Name
+	if(recv(cli->sockfd, name, 40, 0) <= 0 || strlen(name) <  1 || strlen(name) >= 40-1){
+		printf("Didn't enter the name.\n");
+		leave_flag = 1;
+	}
+	else{
+		strcpy(cli->name, name);
+		// se o cara realmente entrar no chat
+		aut = login(arg);
+		if(aut == 1){
+			sprintf(buff_out, "%s entrou no chat", cli->name);
+			printf("%s", buff_out);
+			leave_flag = send_message(buff_out, cli->uid);
+		}
+		else{
+			leave_flag = 1;
+		}
+	}
+
+	bzero(buff_out, BUFFER_SZ);
+
+	while(1){
+		if (leave_flag) {
+			break;
+		}
+		int receive = recv(cli->sockfd, buff_in, BUFFER_SZ, 0);
+		if (receive > 0){
+			if(strlen(buff_in) > 0){
+				if(strcmp(buff_in,"/ping") == 0){
+					send(cli->sockfd,"pong",strlen("pong\0"),0);
+				}
+				else{
+					sprintf(buff_out,"%s: %s\n", cli->name, buff_in);
+					str_trim_lf(buff_out, strlen(buff_out));
+					
+					printf("%s\n", buff_out);
+					leave_flag = send_message(buff_out, cli->uid);
+				}
+			}
+		} else if (receive == 0 || strcmp(buff_out, "exit") == 0){
+			sprintf(buff_out, "%s has left\n", cli->name);
+			printf("%s", buff_out);
+			send_message(buff_out, cli->uid);
+			leave_flag = 1;
+		} else {
+			printf("ERROR: -1\n");
+			leave_flag = 1;
+		}
+
+		bzero(buff_out, BUFFER_SZ);
+		bzero(buff_in, BUFFER_SZ);
+	}
+
+  /* Delete client from queue and yield thread */
+	close(cli->sockfd);
+  	queue_remove(cli->uid);
+  	free(cli);
+  	cli_count--;
+  	pthread_detach(pthread_self());
+
+	return NULL;
+}
+
+int main(int argc, char **argv){
+
+	char *ip = "127.0.0.1";
+	int port = 1337;
+	int option = 1;
+	int listenfd = 0, connfd = 0;
+  	struct sockaddr_in serv_addr;
+  	struct sockaddr_in cli_addr;
+  	pthread_t tid;
+
+	//Configurações do Socket
+	listenfd = socket(AF_INET, SOCK_STREAM, 0);
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = inet_addr(ip);
+	serv_addr.sin_port = htons(port);
+
+	//Ignorar sinais de parada
+	signal(SIGPIPE, SIG_IGN);
+
+	if(setsockopt(listenfd, SOL_SOCKET,(SO_REUSEPORT | SO_REUSEADDR),(char*)&option,sizeof(option)) < 0){
+		perror("ERRO: setsockopt");
+		return EXIT_FAILURE;
+	}
+
+	/* Bind */
+	if(bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+		perror("ERRO: bind");
+		return EXIT_FAILURE;
+	}
+
+	/* Listen */
+	if (listen(listenfd, 10) < 0) {
+		perror("ERRO: listen");
+		return EXIT_FAILURE;
+	}
+
+	printf("Bem vindo ao server\n");
+
+	while(1){
+		socklen_t clilen = sizeof(cli_addr);
+		connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);
+
+		/* Checa se o máximo de clientes foi atingido*/
+		if((cli_count + 1) == MAX_CLIENTS){
+			printf("O server está cheio,conexão rejeitada com");
+			print_client_addr(cli_addr);
+			printf(":%d\n", cli_addr.sin_port);
+			close(connfd);
+			continue;
+		}
+
+		/* Configurações do cliente */
+		client_t *cli = (client_t *)malloc(sizeof(client_t));
+		cli->address = cli_addr;
+		cli->sockfd = connfd;
+		cli->uid = uid++;
+
+		/* Adiciona cliente à fila e cria uma thread */
+		queue_add(cli);
+		pthread_create(&tid, NULL, &handle_client, (void*)cli);
+
+		/* Reduz o uso da CPU*/
+		sleep(0.1);
+	}
+
+	return EXIT_SUCCESS;
 }
