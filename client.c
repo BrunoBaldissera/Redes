@@ -17,6 +17,9 @@
 #define LENGTH 20000 //tamanho máximo do buffer de mensagens digitadas pelo usuário.
 //Esse buffer será repartido em trechos de 4096 bytes na função send_msg_handler
 
+#define SERVER_IP "3.137.63.131" //ip do servidor remoto ao qual o servidor da maquina local sera exposto
+#define SERVER_PORT 18614	 //porta que o servidor vai escutar
+
 
 // Global variables
 //flag pra sair do programa
@@ -121,8 +124,8 @@ void recv_msg_handler() {
 
 int main(int argc, char **argv){
 	char name[40];
-	char ip[20] = "127.0.0.1";
-	int porta = 1337;
+	//char ip[20] = SERVER_IP;
+	//int porta = SERVER_PORT;
 
 	//ignora CTRL C
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN){
@@ -144,8 +147,8 @@ int main(int argc, char **argv){
 	/* Socket settings */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0); // TCP
   	server_addr.sin_family = AF_INET;
-  	server_addr.sin_addr.s_addr = inet_addr(ip);
-  	server_addr.sin_port = htons(porta);
+  	server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
+  	server_addr.sin_port = htons(SERVER_PORT);
 
   	char comando[50];
 

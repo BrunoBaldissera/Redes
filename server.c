@@ -224,8 +224,8 @@ void *handle_client(void *arg){
 int main(int argc, char **argv){
 
 	//configuração
-	char *ip = "127.0.0.1";
-	int port = 1337;
+	//char *ip = "127.0.0.1";
+	int port = 3000;
 	int option = 1;
 	int listenfd = 0, connfd = 0;
   	struct sockaddr_in serv_addr;
@@ -236,7 +236,7 @@ int main(int argc, char **argv){
 	//Configurações do Socket
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
 	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = inet_addr(ip);
+	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	serv_addr.sin_port = htons(port);
 
 
