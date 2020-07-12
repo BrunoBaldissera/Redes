@@ -17,10 +17,6 @@
 #define LENGTH 20000 //tamanho máximo do buffer de mensagens digitadas pelo usuário.
 //Esse buffer será repartido em trechos de 4096 bytes na função send_msg_handler
 
-#define SERVER_IP "3.137.63.131" //ip do servidor remoto ao qual o servidor da maquina local sera exposto
-#define SERVER_PORT 18614	 //porta que o servidor vai escutar
-
-
 // Global variables
 //flag pra sair do programa
 volatile sig_atomic_t flag = 0;
@@ -122,10 +118,11 @@ void recv_msg_handler() {
   	pthread_detach(pthread_self());
 }
 
-int main(int argc, char **argv){
+int main(int argc, char *argv[]){
 	char name[40];
-	//char ip[20] = SERVER_IP;
-	//int porta = SERVER_PORT;
+	int porta = atoi(argv[2]);
+
+	printf("%s é o ip e %d é a porta\n", argv[1], porta);
 
 	//ignora CTRL C
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN){
@@ -147,19 +144,27 @@ int main(int argc, char **argv){
 	/* Socket settings */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0); // TCP
   	server_addr.sin_family = AF_INET;
-  	server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
-  	server_addr.sin_port = htons(SERVER_PORT);
+  	server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+  	server_addr.sin_port = htons(porta);
 
-  	char comando[50];
+  	char comando[100];
+  	char nome_canal[50];
+  	fflush(stdin);
 
-  	printf("Olá %s! Bem vindo ao IRC. Para conectar ao servidor, digite /connect\n", name);
+  	printf("Olá %s! Bem vindo ao IRC. Para conectar ao servidor, digite /connect, seguido do nome do canal\n", name);
   	while(1){
   		if(feof(stdin)){
   			return EXIT_FAILURE;
   		}
-  		fgets(comando, 40, stdin);
+  		fgets(comando, 100, stdin);
   		str_trim_lf(comando,strlen(comando));
-  		if(strcmp(comando,"/connect") == 0){
+  		if(strncmp(comando,"/connect", 8) == 0){
+  			int j = 0;
+  			for(int i = 9; comando[i] != '\0'; i++){
+  				nome_canal[j] = comando[i];
+  				j++;
+  			}
+  			printf("o nome do canal é %s\n", nome_canal);
   			break;
   		}
   		if(strcmp(comando,"/quit") == 0){
@@ -174,10 +179,22 @@ int main(int argc, char **argv){
 		return EXIT_FAILURE;
 	}
 
-	printf("=== BEM VINDO À SALA DE CHAT, POR QUESTÕES DE SEGURANÇA, FAÇA LOGIN POR FAVOR ===\n");
+	char serv_disp[50];
+	if (recv(sockfd, serv_disp, 50, 0) > 0){
+		printf("%s\n\n", serv_disp);
+		//aqui verificamos se a mensagem recebuda é a de servidor disponível ou não, e como sabemos que a de indisponibilidade começa com o caractere 'O', usamos isso
+		//para uma facil distinção.
+		if (serv_disp[0] == 'O') return 0;
+	}
+
+	printf("=== BEM-VINDO(A) À SALA DE CHAT===\n");
 
 	// Enviando o nome para o servidor
 	send(sockfd, name, 40, 0);
+	//sleep(0.3);
+	// Enviando ao servidor o nome do canal a ser conectado
+	str_trim_lf(nome_canal, strlen(nome_canal));
+	send(sockfd, nome_canal, 50, 0);
 
 	pthread_t recv_msg_thread;
   	if(pthread_create(&recv_msg_thread, NULL, (void *) recv_msg_handler, NULL) != 0){
@@ -193,7 +210,7 @@ int main(int argc, char **argv){
 
 	while (1){
 		if(flag){
-			printf("\nTchau\n");
+			printf("\nAte a proxima!\n");
 			break;
     	}
     	sleep(0.5);

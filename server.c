@@ -3,6 +3,13 @@
 //BRUNO GAZONI - 7585037
 //BRUNO BALDISSERA - 10724351
 
+//TO DO: CRIAR LOGINS PARA USUARIOS, GUARDADOS EM ARQUIVO (USAR HASH PARA SENHAS)
+//	DAR NOMES A CANAIS, CRIAR UM CANAL NOVO QUANDO UM CLIENTE CONECTA A ELE (UM MESMO SERVIDOR TERA VARIOS CANAIS RECONHECIDOS PELO NOME)
+//	DAR NICKNAMES AOS CLIENTES 
+//	IDENTIFICAR UM USUARIO MODERADOR
+//	IMPLEMENTAR: KICK
+//		     MUTE/UNMUTE
+//		     WHOIS
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -21,14 +28,16 @@
 #define BUFFER_SZ 2048
 
 static _Atomic unsigned int cli_count = 0;
-static int uid = 10;
+//static int uid = 10;
 
 /* Estrutura do cliente */
 typedef struct{
 	struct sockaddr_in address;
 	int sockfd;
 	int uid;
-	char name[32];
+	char name[40];
+	char canal[50];
+	short int mod;
 } client_t;
 
 //Dados dos clientes são armazenados nesse vetor
@@ -88,13 +97,13 @@ void queue_remove(int uid){
 }
 
 /* Envia mensagem para todos os clientes(incluindo o remetente, como dito na especificação) */
-int send_message(char *s, int uid){
+int send_message(char *s, int uid, char* canal){
 	int send_ret = 0;
 	int trials;
 	pthread_mutex_lock(&clients_mutex); //trava as threads para acessar as variáveis globais sem problemas
 
 	for(int i=0; i<MAX_CLIENTS; ++i){
-		if(clients[i] != NULL){
+		if(clients[i] != NULL && (strcmp(clients[i]->canal, canal) == 0)){
 			while(send(clients[i]->sockfd, s, strlen(s),0) < 0 && trials < 5){ // caso o cliente não receba, são feitas 5 tentativas
 				trials++;
 			}
@@ -104,6 +113,7 @@ int send_message(char *s, int uid){
 			//recv(clients[i]->sockfd, ack_recv, 4,0);
 		}
 	}
+	//destrava as threads
 	pthread_mutex_unlock(&clients_mutex);
 	return send_ret;
 }
@@ -113,14 +123,17 @@ int send_message(char *s, int uid){
 // SENHA = admin
 int login(void *arg){
 	client_t *cli = (client_t *)arg;
-	char message[50] = "Digite o login.";
+	
 	char buffer[50];
+	char message[50];
+
+	strcpy(message, "Digite o login.");
 
 	char LOGIN_SERVER[50] = "admin";
 	char SENHA_SERVER[50] = "admin";
 
 	send(cli->sockfd,message,strlen(message),0);
-	recv(cli->sockfd, buffer, 40, 0);
+	recv(cli->sockfd, buffer, 50, 0);
 
 	if(strcmp(buffer,LOGIN_SERVER) != 0){
 		strcpy(message,"Login incorreto.");
@@ -140,9 +153,7 @@ int login(void *arg){
 		else{
 			return 1;
 		}
-
 	}
-
 }
 
 /* Lida com toda a comunicação com o cliente */
@@ -150,34 +161,69 @@ void *handle_client(void *arg){
 	char buff_in[BUFFER_SZ];
 	char buff_out[BUFFER_SZ];
 	char name[40];
+	char nome_canal[50];
 	int leave_flag = 0;
 	int aut = 1;
 
 
 	cli_count++;
 	client_t *cli = (client_t *)arg;
-
+	
 	// Name
 	if(recv(cli->sockfd, name, 40, 0) <= 0 || strlen(name) <  1 || strlen(name) >= 40-1){
-		printf("Didn't enter the name.\n");
+		printf("Não inseriu o nome.\n");
 		leave_flag = 1;
 	}
 	else{
 		strcpy(cli->name, name);
+
+		//----------------------Este trecho lida com o input de canal do cliente---------------
+		bzero(buff_out, BUFFER_SZ);
+		bzero(buff_in, BUFFER_SZ);
+
+		recv(cli->sockfd, buff_in, 50, 0);
+		printf("Nome de canal recebido: %s\n", buff_in);
+
+		//Verificamos se o canal requisitado já existe, e caso contrário, criamos ele e tornamos o cliente que o requisitou moderador.
+ 		short int canal_ex = 0;
+
+ 		printf("cli_count: %d\n", cli_count);
+
+ 		for (int i = 0; i < cli_count; i++){
+ 			if (strncmp(clients[i]->canal, buff_in, strlen(buff_in)) == 0){
+ 				canal_ex = 1;
+ 			}
+ 		}
+
+ 		strncpy(cli->canal, buff_in, strlen(buff_in));
+
+ 		if (canal_ex == 0){
+ 			printf("Novo canal %s criado.\n", cli->canal);
+ 			strcpy(buff_out, "Esse canal nao existe ainda, sera criado agora...\n\n Voce agora e um moderador deste canal.\n");
+ 			leave_flag = send_message(buff_out, cli->uid, cli->canal);
+ 			cli->mod = 1;
+ 		}
+
+		bzero(buff_out, BUFFER_SZ);
+		bzero(buff_in, BUFFER_SZ);
+		//--------------------------------------------------------------------------------------
+
 		// se o cliente entrar no chat
-		aut = login(arg);
-		if(aut == 1){
-			sprintf(buff_out, "%s entrou no chat", cli->name);
+		//aut = login(arg);
+		//if(aut == 1){
+			sprintf(buff_out, "%s conectou-se", cli->name);
 			printf("%s\n", buff_out);
 			fflush(stdout);
-			leave_flag = send_message(buff_out, cli->uid);
-		}
-		else{
-			leave_flag = 1;
-		}
+			leave_flag = send_message(buff_out, cli->uid, cli->canal);
+		//}
+		//else{
+		//	leave_flag = 1;
+		//}
 	}
 
 	bzero(buff_out, BUFFER_SZ);
+	bzero(buff_in, BUFFER_SZ);
+
 
 	while(1){
 		if (leave_flag) {
@@ -186,21 +232,104 @@ void *handle_client(void *arg){
 		int receive = recv(cli->sockfd, buff_in, BUFFER_SZ, 0);
 		if (receive > 0){
 			if(strlen(buff_in) > 0){
-				if(strcmp(buff_in,"/ping") == 0){
-					send(cli->sockfd,"SERVER: pong",strlen("SERVER: pong\0"),0);
-				}
+				if(buff_in[0] == '/'){
+					if(strcmp(buff_in,"/ping") == 0){
+						send(cli->sockfd,"SERVER: pong",strlen("SERVER: pong\0"),0);
+					}
+					else if (strncmp(buff_in, "/join", 5) == 0) { //comandos de saída
+						char novo_canal[50];
+						int j = 0;
+						for(int i = 6; i < strlen(buff_in); i++){
+							novo_canal[j] = buff_in[i];
+						}
+						strcpy(cli->canal, novo_canal);
+						short int flag_canal = 0;
+						for (int i = 0; i < cli_count; i++){
+ 							if (strcmp(clients[i]->canal, novo_canal) == 0){
+ 								flag_canal = 1;
+ 							}
+ 						}
+				 		if (flag_canal == 0){
+				 			printf("Novo canal %s criado.\n", cli->canal);
+				 			strcpy(buff_out, "Esse canal nao existe ainda, sera criado agora...\n\n Voce agora e um moderador deste canal.\n");
+				 			leave_flag = send(cli->sockfd, buff_out, strlen(buff_out), 0);
+				 			cli->mod = 1;
+				 		}
+		    		}
+		    		else if (strncmp(buff_in, "/nickname", 9) == 0) { //comandos de saída
+		    			printf(buff_in);
+		    			int j = 0;
+		    			char novo_apelido[50];
+						for(int i = 10; i < strlen(buff_in); i++){
+							novo_apelido[j] = buff_in[i];
+						}
+						printf(novo_apelido);
+		    			strcpy(cli->name, novo_apelido);
+						send(cli->sockfd,"Pronto, seu apelido foi reconfigurado para ", strlen("Pronto, seu apelido foi reconfigurado para \0"),0);
+						send(cli->sockfd, novo_apelido, strlen(novo_apelido), 0);
+						send(cli->sockfd, ".\n", strlen(".\n"), 0);
+
+		    		}
+					else if (strncmp(buff_in, "/whois", 6) == 0) { //comandos de saída
+						if(cli->mod == 0){
+							send(cli->sockfd,"Você precisa ser moderador para usar este comando.",strlen("Você precisa ser moderador para usar este comando.\0"),0);
+						}
+						else{
+							printf("comando whois acionado\n");
+						}
+		    		}
+		    		else if (strncmp(buff_in, "/kick", 5) == 0) { //comandos de saída
+		    			if(cli->mod == 0){
+							send(cli->sockfd,"Você precisa ser moderador para usar este comando.",strlen("Você precisa ser moderador para usar este comando.\0"),0);
+						}
+						else{
+							char kicked_user[50];
+							int j = 0;
+							for(int i = 6; i < strlen(buff_in); i++){
+								kicked_user[j] = buff_in[i];
+							}
+							short int flag_kick = 0;
+							for(int i = 0; i < cli_count; i++){
+								if (strcmp(clients[i]->name, kicked_user) == 0){
+									//ENVIAR MENSAGEM PARA O USUARIO KICKADO
+									strcpy(clients[i]->canal, "limbo");
+									flag_kick = 1;
+								}
+							}
+							if (flag_kick == 1){
+								send(cli->sockfd,"O usuário foi kickado do canal.",strlen("O usuário foi kickado do canal.\0"),0);
+							}
+						}
+		    		}
+		    		else if (strncmp(buff_in, "/mute", 5) == 0) { //comandos de saída
+		    			if(cli->mod == 0){
+							send(cli->sockfd,"Você precisa ser moderador para usar este comando.",strlen("Você precisa ser moderador para usar este comando.\0"),0);
+						}
+						else{
+							printf("comando mute acionado\n");
+						}
+		    		}
+		    		else if (strncmp(buff_in, "/unmute", 7) == 0) { //comandos de saída
+		    			if(cli->mod == 0){
+							send(cli->sockfd,"Você precisa ser moderador para usar este comando.",strlen("Você precisa ser moderador para usar este comando.\0"),0);
+						}
+						else{
+							printf("comando unmute acionado\n");
+						}
+		    		}
+		    	}
 				else{
 					sprintf(buff_out,"%s: %s\n", cli->name, buff_in);
 					str_trim_lf(buff_out, strlen(buff_out));
 					
 					printf("%s\n", buff_out);
-					leave_flag = send_message(buff_out, cli->uid);
+					leave_flag = send_message(buff_out, cli->uid, cli->canal);
 				}
 			}
 		} else if (receive == 0 || strcmp(buff_out, "/exit") == 0){
 			sprintf(buff_out, "%s has left\n", cli->name);
 			printf("%s", buff_out);
-			send_message(buff_out, cli->uid);
+			send_message(buff_out, cli->uid, cli->canal);
 			leave_flag = 1;
 		} else {
 			printf("ERROR: -1\n");
@@ -221,16 +350,18 @@ void *handle_client(void *arg){
 	return NULL;
 }
 
-int main(int argc, char **argv){
+int main(int argc, char *argv[]){
 
 	//configuração
 	//char *ip = "127.0.0.1";
 	int port = 3000;
 	int option = 1;
+	int uid = 0;
 	int listenfd = 0, connfd = 0;
   	struct sockaddr_in serv_addr;
   	struct sockaddr_in cli_addr;
   	pthread_t tid;
+  	char canais[100][50];
 
 
 	//Configurações do Socket
@@ -263,14 +394,21 @@ int main(int argc, char **argv){
 		socklen_t clilen = sizeof(cli_addr);
 		connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);
 
+		char serv_disp[50];
 		/* Checa se o máximo de clientes foi atingido*/
 		if((cli_count + 1) == MAX_CLIENTS){
-			printf("O server está cheio,conexão rejeitada com");
+			printf("O server está cheio,conexão rejeitada com ");
 			print_adress(cli_addr);
-			printf(":%d\n", cli_addr.sin_port);
+			printf("id: (%d)\n", uid + 1);
+
+			strcpy(serv_disp, "O server está cheio, tente novamente mais tarde...\n");
+			send(connfd, serv_disp, strlen(serv_disp),0);
 			close(connfd);
 			continue;
 		}
+
+		strcpy(serv_disp, "Conexao com o servidor bem-sucedida!");
+		send(connfd, serv_disp, strlen(serv_disp),0);
 
 		/* Configurações do cliente */
 		client_t *cli = (client_t *)malloc(sizeof(client_t));
