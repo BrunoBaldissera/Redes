@@ -27,6 +27,8 @@
 #define MAX_CLIENTS 100
 #define BUFFER_SZ 2048
 
+#define DEBUG 1
+
 static _Atomic unsigned int cli_count = 0;
 //static int uid = 10;
 
@@ -96,7 +98,7 @@ void queue_remove(int uid){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-/* Envia mensagem para todos os clientes(incluindo o remetente, como dito na especificação) */
+/* Envia mensagem para todos os clientes em um canal(incluindo o remetente, como dito na especificação) */
 int send_message(char *s, int uid, char* canal){
 	int send_ret = 0;
 	int trials;
@@ -111,6 +113,30 @@ int send_message(char *s, int uid, char* canal){
 				send_ret = 1;
 			}
 			//recv(clients[i]->sockfd, ack_recv, 4,0);
+		}
+	}
+	//destrava as threads
+	pthread_mutex_unlock(&clients_mutex);
+	return send_ret;
+}
+
+/* Envia mensagem para um cliente especificado pelo nickname e canal*/
+int send_message_un(char *s, int uid, char* nickname, char* canal){
+	int send_ret = 0;
+	int trials;
+	pthread_mutex_lock(&clients_mutex); //trava as threads para acessar as variáveis globais sem problemas
+
+	for(int i=0; i<MAX_CLIENTS; ++i){
+		if(clients[i] != NULL && (strcmp(clients[i]->name, nickname) == 0)){
+			if(strcmp(canal, clients[i]->canal) == 0){
+				while(send(clients[i]->sockfd, s, strlen(s),0) < 0 && trials < 5){ // caso o cliente não receba, são feitas 5 tentativas
+					trials++;
+				}
+				if(trials == 5){
+					send_ret = 1;
+				}
+			//recv(clients[i]->sockfd, ack_recv, 4,0);
+			}
 		}
 	}
 	//destrava as threads
@@ -199,7 +225,7 @@ void *handle_client(void *arg){
 
  		if (canal_ex == 0){
  			printf("Novo canal %s criado.\n", cli->canal);
- 			strcpy(buff_out, "Esse canal nao existe ainda, sera criado agora...\n\n Voce agora e um moderador deste canal.\n");
+ 			strcpy(buff_out, "Esse canal nao existia anteriormente a acabou de ser criado.\n\n Voce agora e o moderador deste canal.\n");
  			leave_flag = send_message(buff_out, cli->uid, cli->canal);
  			cli->mod = 1;
  		}
@@ -241,6 +267,7 @@ void *handle_client(void *arg){
 						int j = 0;
 						for(int i = 6; i < strlen(buff_in); i++){
 							novo_canal[j] = buff_in[i];
+							j++;
 						}
 						strcpy(cli->canal, novo_canal);
 						short int flag_canal = 0;
@@ -251,19 +278,26 @@ void *handle_client(void *arg){
  						}
 				 		if (flag_canal == 0){
 				 			printf("Novo canal %s criado.\n", cli->canal);
-				 			strcpy(buff_out, "Esse canal nao existe ainda, sera criado agora...\n\n Voce agora e um moderador deste canal.\n");
+				 			strcpy(buff_out, "Esse canal nao existia anteriormente a acabou de ser criado.\n\n Voce agora e o moderador deste canal.\n");
 				 			leave_flag = send(cli->sockfd, buff_out, strlen(buff_out), 0);
 				 			cli->mod = 1;
 				 		}
+				 		strcpy(buff_out, "\n=== BEM-VINDO(A) AO CANAL ");
+				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
+				 		strcpy(buff_out, cli->canal);
+				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
+				 		strcpy(buff_out, "===\n\n");
+				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
 		    		}
 		    		else if (strncmp(buff_in, "/nickname", 9) == 0) { //comandos de saída
-		    			printf(buff_in);
+		    			if (DEBUG) printf("o comando foi %s\n", buff_in);
 		    			int j = 0;
 		    			char novo_apelido[50];
 						for(int i = 10; i < strlen(buff_in); i++){
 							novo_apelido[j] = buff_in[i];
+							j++;
 						}
-						printf(novo_apelido);
+						if (DEBUG) printf("novo apelido: %s\n", novo_apelido);
 		    			strcpy(cli->name, novo_apelido);
 						send(cli->sockfd,"Pronto, seu apelido foi reconfigurado para ", strlen("Pronto, seu apelido foi reconfigurado para \0"),0);
 						send(cli->sockfd, novo_apelido, strlen(novo_apelido), 0);
@@ -287,23 +321,41 @@ void *handle_client(void *arg){
 							int j = 0;
 							for(int i = 6; i < strlen(buff_in); i++){
 								kicked_user[j] = buff_in[i];
+								j++;
 							}
+							if (DEBUG) printf("O usuario a ser kickado e: %s\n", kicked_user);
+
 							short int flag_kick = 0;
+
+							if (strcmp(cli->name, kicked_user) == 0) {
+								send(cli->sockfd,"Voce nao pode kickar a si proprio.",strlen("Voce nao pode kickar a si proprio.\0"),0);
+								flag_kick = 2;
+							}
+
 							for(int i = 0; i < cli_count; i++){
+								if (flag_kick != 0) break;
 								if (strcmp(clients[i]->name, kicked_user) == 0){
-									//ENVIAR MENSAGEM PARA O USUARIO KICKADO
-									strcpy(clients[i]->canal, "limbo");
-									flag_kick = 1;
+									if(strcmp(clients[i]->canal, cli->canal) == 0){
+										if (DEBUG) printf("canal mutuo: %s\n", cli->canal);
+
+										strcpy(buff_out, kicked_user);
+										send_message(buff_out, cli->uid, cli->canal);
+										strcpy(buff_out, " foi kickado do grupo por um moderador e entrará no limbo. Até a próxima!\n");
+										send_message(buff_out, cli->uid, cli->canal);
+
+										strcpy(clients[i]->canal, "limbo");
+										flag_kick = 1;
+									}
 								}
 							}
-							if (flag_kick == 1){
-								send(cli->sockfd,"O usuário foi kickado do canal.",strlen("O usuário foi kickado do canal.\0"),0);
+							if (flag_kick == 0){
+								send(cli->sockfd,"Usuario nao existe ou não esta no canal.",strlen("Usuario nao existe ou não esta no canal.\0"),0);
 							}
 						}
 		    		}
 		    		else if (strncmp(buff_in, "/mute", 5) == 0) { //comandos de saída
 		    			if(cli->mod == 0){
-							send(cli->sockfd,"Você precisa ser moderador para usar este comando.",strlen("Você precisa ser moderador para usar este comando.\0"),0);
+							send(cli->sockfd,"Voce precisa ser moderador para usar este comando.",strlen("Voce precisa ser moderador para usar este comando.\0"),0);
 						}
 						else{
 							printf("comando mute acionado\n");
@@ -311,7 +363,7 @@ void *handle_client(void *arg){
 		    		}
 		    		else if (strncmp(buff_in, "/unmute", 7) == 0) { //comandos de saída
 		    			if(cli->mod == 0){
-							send(cli->sockfd,"Você precisa ser moderador para usar este comando.",strlen("Você precisa ser moderador para usar este comando.\0"),0);
+							send(cli->sockfd,"Voce precisa ser moderador para usar este comando.",strlen("Voce precisa ser moderador para usar este comando.\0"),0);
 						}
 						else{
 							printf("comando unmute acionado\n");
@@ -388,7 +440,7 @@ int main(int argc, char *argv[]){
 		return EXIT_FAILURE;
 	}
 
-	printf("Bem vindo ao server\n");
+	printf("\nServer aberto\n\n");
 
 	while(1){
 		socklen_t clilen = sizeof(cli_addr);

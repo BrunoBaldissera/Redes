@@ -16,6 +16,7 @@
 
 #define LENGTH 20000 //tamanho máximo do buffer de mensagens digitadas pelo usuário.
 //Esse buffer será repartido em trechos de 4096 bytes na função send_msg_handler
+#define DEBUG 1
 
 // Global variables
 //flag pra sair do programa
@@ -129,7 +130,7 @@ int main(int argc, char *argv[]){
     	signal(SIGINT, ignore);
 	}
 
-	printf("Digite o seu nome: ");
+	printf("\n\nAntes de qualquer coisa, por favor digite o seu nome: ");
   	fgets(name, 40, stdin);
   	str_trim_lf(name, strlen(name));
 
@@ -151,7 +152,7 @@ int main(int argc, char *argv[]){
   	char nome_canal[50];
   	fflush(stdin);
 
-  	printf("Olá %s! Bem vindo ao IRC. Para conectar ao servidor, digite /connect, seguido do nome do canal\n", name);
+  	printf("\n\nOlá %s! Bem vindo ao IRC. Para conectar ao servidor, digite /connect, seguido do nome do canal\n", name);
   	while(1){
   		if(feof(stdin)){
   			return EXIT_FAILURE;
@@ -164,7 +165,7 @@ int main(int argc, char *argv[]){
   				nome_canal[j] = comando[i];
   				j++;
   			}
-  			printf("o nome do canal é %s\n", nome_canal);
+  			if (DEBUG) printf("o nome do canal é %s\n", nome_canal);
   			break;
   		}
   		if(strcmp(comando,"/quit") == 0){
@@ -187,7 +188,7 @@ int main(int argc, char *argv[]){
 		if (serv_disp[0] == 'O') return 0;
 	}
 
-	printf("=== BEM-VINDO(A) À SALA DE CHAT===\n");
+	printf("\n=== BEM-VINDO(A) AO CANAL %s===\n\n", nome_canal);
 
 	// Enviando o nome para o servidor
 	send(sockfd, name, 40, 0);
