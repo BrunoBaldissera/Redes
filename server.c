@@ -256,6 +256,7 @@ void *handle_client(void *arg){
 			break;
 		}
 		int receive = recv(cli->sockfd, buff_in, BUFFER_SZ, 0);
+		if (DEBUG) printf("buff_in: %s\n", buff_in);
 		if (receive > 0){
 			if(strlen(buff_in) > 0){
 				if(buff_in[0] == '/'){
@@ -269,6 +270,7 @@ void *handle_client(void *arg){
 							novo_canal[j] = buff_in[i];
 							j++;
 						}
+						novo_canal[j] = '\0';
 						strcpy(cli->canal, novo_canal);
 						short int flag_canal = 0;
 						for (int i = 0; i < cli_count; i++){
@@ -290,13 +292,14 @@ void *handle_client(void *arg){
 				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
 		    		}
 		    		else if (strncmp(buff_in, "/nickname", 9) == 0) { //comandos de saída
-		    			if (DEBUG) printf("o comando foi %s\n", buff_in);
+		    			if (DEBUG) printf("o comando foi %s\n strlen(buff_in) = %d\n", buff_in, strlen(buff_in));
 		    			int j = 0;
 		    			char novo_apelido[50];
 						for(int i = 10; i < strlen(buff_in); i++){
 							novo_apelido[j] = buff_in[i];
 							j++;
 						}
+						novo_apelido[j] = '\0';
 						if (DEBUG) printf("novo apelido: %s\n", novo_apelido);
 		    			strcpy(cli->name, novo_apelido);
 						send(cli->sockfd,"Pronto, seu apelido foi reconfigurado para ", strlen("Pronto, seu apelido foi reconfigurado para \0"),0);
