@@ -331,11 +331,7 @@ void *handle_client(void *arg){
 				 			send(cli->sockfd, buff_out, strlen(buff_out), 0);
 				 			cli->mod = 1;	//da privilegios de moderador
 				 		}
-				 		strcpy(buff_out, "\n=== BEM-VINDO(A) AO CANAL ");
-				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
-				 		strcpy(buff_out, cli->canal);
-				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
-				 		strcpy(buff_out, "===\n\n");
+				 		sprintf(buff_out, "\n=== BEM-VINDO(A) AO CANAL %s ===", cli->canal);
 				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
 
 				 		//Avisa aos usuarios do canal que o usuario entrou
@@ -367,6 +363,9 @@ void *handle_client(void *arg){
 						}
 
 						if(flag_nick == 0){
+							sprintf(buff_out, "%s mudou seu nome para %s!\n\n", cli->name, novo_apelido);
+							send_message(buff_out, cli->uid, cli->canal);
+
 			    			strcpy(cli->name, novo_apelido);
 							send(cli->sockfd,"Pronto, seu apelido foi reconfigurado para ", strlen("Pronto, seu apelido foi reconfigurado para \0"),0);
 							send(cli->sockfd, novo_apelido, strlen(novo_apelido), 0);
@@ -442,9 +441,7 @@ void *handle_client(void *arg){
 									if(strcmp(clients[i]->canal, cli->canal) == 0){
 										if (DEBUG) printf("canal mutuo: %s\n", cli->canal);
 
-										strcpy(buff_out, kicked_user);
-										send_message(buff_out, cli->uid, cli->canal);
-										strcpy(buff_out, " foi kickado do grupo por um moderador e entrará no limbo. Até a próxima!\n\n");
+										sprintf(buff_out, "%s foi kickado do grupo por um moderador e entrará no limbo. Até a próxima!\n\n", kicked_user);
 										send_message(buff_out, cli->uid, cli->canal);
 
 										strcpy(clients[i]->canal, "limbo");
@@ -479,9 +476,7 @@ void *handle_client(void *arg){
 									if(strcmp(clients[i]->canal, cli->canal) == 0){
 										if (DEBUG) printf("canal mutuo: %s\n", cli->canal);
 
-										strcpy(buff_out, muted_user);
-										send_message(buff_out, cli->uid, cli->canal);
-										strcpy(buff_out, " foi silenciado do grupo por um moderador e não poderá mais ser ouvido até que seja dessilenciado.\n\n");
+										sprintf(buff_out, "%s foi silenciado do grupo por um moderador e não poderá mais ser ouvido até que seja dessilenciado.\n\n", muted_user);
 										send_message(buff_out, cli->uid, cli->canal);
 
 										flag_mute = 1;
@@ -515,9 +510,7 @@ void *handle_client(void *arg){
 									if(strcmp(clients[i]->canal, cli->canal) == 0){
 										if (DEBUG) printf("canal mutuo: %s\n", cli->canal);
 
-										strcpy(buff_out, unmuted_user);
-										send_message(buff_out, cli->uid, cli->canal);
-										strcpy(buff_out, " não está mais sileciado e agora pode ser ouvido por todos!\n\n");
+										sprintf(buff_out, "%s não está mais sileciado e agora pode ser ouvido por todos!\n\n", unmuted_user);
 										send_message(buff_out, cli->uid, cli->canal);
 
 										flag_unmute = 1;
