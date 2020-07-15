@@ -344,7 +344,40 @@ void *handle_client(void *arg){
 							send(cli->sockfd,"Você precisa ser moderador para usar este comando.",strlen("Você precisa ser moderador para usar este comando.\0"),0);
 						}
 						else{
-							printf("comando whois acionado\n");
+							if (DEBUG) printf("comando whois acionado\n");
+
+							char searched_user[50];
+							int j = 0;
+							for(int i = 7; i < strlen(buff_in); i++){
+								searched_user[j] = buff_in[i];
+								j++;
+							}
+							searched_user[j] = '\0';
+							if (DEBUG) printf("searched_user: %s\n", searched_user);
+
+							short int flag_search = 0;
+							for(int i = 0; i < cli_count; i++){
+								if (flag_search != 0) break;
+								if (strcmp(clients[i]->name, searched_user) == 0){
+									if(strcmp(clients[i]->canal, cli->canal) == 0){
+										if (DEBUG) printf("canal mutuo: %s\n", cli->canal);
+
+										sprintf(buff_out, "O ip de %s é: ", searched_user);
+				 						send(cli->sockfd, buff_out, strlen(buff_out), 0);
+
+										sprintf(buff_out, "%d.%d.%d.%d",
+        									clients[i]->address.sin_addr.s_addr & 0xff,
+       										(clients[i]->address.sin_addr.s_addr & 0xff00) >> 8,
+        									(clients[i]->address.sin_addr.s_addr & 0xff0000) >> 16,
+        									(clients[i]->address.sin_addr.s_addr & 0xff000000) >> 24);
+										send(cli->sockfd, buff_out, strlen(buff_out), 0);
+										flag_search = 1;
+									}
+								}
+							}
+							if (flag_search == 0){
+								send(cli->sockfd,"Usuario nao existe ou não esta no canal.",strlen("Usuario nao existe ou não esta no canal.\0"),0);
+							}
 						}
 		    		}
 		    		else if (strncmp(buff_in, "/kick", 5) == 0) { //comandos de saída
