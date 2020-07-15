@@ -152,7 +152,7 @@ int main(int argc, char *argv[]){
   	char nome_canal[50];
   	fflush(stdin);
 
-  	printf("\n\nOlá %s! Bem vindo ao IRC. Para conectar ao servidor, digite /connect, seguido do nome do canal\n", name);
+  	printf("\n\nOlá %s! Bem vindo ao IRC. Para conectar ao servidor e começar a conversar digite /connect seguido do nome do canal\n", name);
   	while(1){
   		if(feof(stdin)){
   			return EXIT_FAILURE;
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]){
 		if (serv_disp[0] == 'O') return 0;
 	}
 
-	printf("\n=== BEM-VINDO(A) AO CANAL %s===\n\n", nome_canal);
+	printf("\n=== Bem-vindo(a) ao canal: %s===\n Para saber mais, digite /help ===\n\n", nome_canal);
 
 	// Enviando o nome para o servidor
 	send(sockfd, name, 40, 0);
