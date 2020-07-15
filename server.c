@@ -40,6 +40,7 @@ typedef struct{
 	char name[40];
 	char canal[50];
 	short int mod;
+	short int muted;
 } client_t;
 
 //Dados dos clientes são armazenados nesse vetor
@@ -361,7 +362,34 @@ void *handle_client(void *arg){
 							send(cli->sockfd,"Voce precisa ser moderador para usar este comando.",strlen("Voce precisa ser moderador para usar este comando.\0"),0);
 						}
 						else{
-							printf("comando mute acionado\n");
+							if (DEBUG) printf("comando mute acionado\n");
+							char muted_user[50];
+							int j = 0;
+							for(int i = 6; i < strlen(buff_in); i++){
+								muted_user[j] = buff_in[i];
+								j++;
+							}
+							if (DEBUG) printf("muted user: %s\n", muted_user);
+							short int flag_mute = 0;
+							for(int i = 0; i < cli_count; i++){
+								if (flag_mute != 0) break;
+								if (strcmp(clients[i]->name, muted_user) == 0){
+									if(strcmp(clients[i]->canal, cli->canal) == 0){
+										if (DEBUG) printf("canal mutuo: %s\n", cli->canal);
+
+										strcpy(buff_out, muted_user);
+										send_message(buff_out, cli->uid, cli->canal);
+										strcpy(buff_out, " foi silenciado do grupo por um moderador e não poderá mais ser ouvido até que seja dessilenciado.\n");
+										send_message(buff_out, cli->uid, cli->canal);
+
+										flag_mute = 1;
+										clients[i]->muted = 1;
+									}
+								}
+							}
+							if (flag_mute == 0){
+								send(cli->sockfd,"Usuario nao existe ou não esta no canal.",strlen("Usuario nao existe ou não esta no canal.\0"),0);
+							}
 						}
 		    		}
 		    		else if (strncmp(buff_in, "/unmute", 7) == 0) { //comandos de saída
@@ -369,7 +397,7 @@ void *handle_client(void *arg){
 							send(cli->sockfd,"Voce precisa ser moderador para usar este comando.",strlen("Voce precisa ser moderador para usar este comando.\0"),0);
 						}
 						else{
-							printf("comando unmute acionado\n");
+							if (DEBUG) printf("comando unmute acionado\n");
 						}
 		    		}
 		    	}
@@ -378,7 +406,10 @@ void *handle_client(void *arg){
 					str_trim_lf(buff_out, strlen(buff_out));
 					
 					printf("%s\n", buff_out);
-					leave_flag = send_message(buff_out, cli->uid, cli->canal);
+
+					if(cli->muted != 1){
+						leave_flag = send_message(buff_out, cli->uid, cli->canal);
+					}
 				}
 			}
 		} else if (receive == 0 || strcmp(buff_out, "/exit") == 0){
