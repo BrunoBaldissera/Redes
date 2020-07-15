@@ -6,5 +6,5 @@ roda_servidor:
 	./server
 
 roda_cliente:
-	./client 127.0.0.1 3000
+	./client 3.19.6.32 14714
 

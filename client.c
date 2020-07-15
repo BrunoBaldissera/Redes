@@ -152,7 +152,8 @@ int main(int argc, char *argv[]){
   	char nome_canal[50];
   	fflush(stdin);
 
-  	printf("\n\nOlá %s! Bem vindo ao IRC. Para conectar ao servidor e começar a conversar digite /connect seguido do nome do canal\n", name);
+  	printf("\n\nOlá %s! Bem vindo ao IRC. Para conectar ao servidor e começar a conversar digite /connect seguido do nome do canal"
+  	       "(o nome de um canal deve começar com o caractere '#')\n\n", name);
   	while(1){
   		if(feof(stdin)){
   			return EXIT_FAILURE;
@@ -165,7 +166,13 @@ int main(int argc, char *argv[]){
   				nome_canal[j] = comando[i];
   				j++;
   			}
+  			nome_canal[j] = '\0';
   			if (DEBUG) printf("o nome do canal é %s\n", nome_canal);
+  			if (nome_canal[0] != '#'){
+				printf("O nome do canal deve começar com o caractere '#', tente novamente.\n\n");
+				strcpy(nome_canal, "");
+				continue;
+			}
   			break;
   		}
   		if(strcmp(comando,"/quit") == 0){
