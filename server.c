@@ -303,12 +303,21 @@ void *handle_client(void *arg){
 						}
 						novo_canal[j] = '\0';
 						if (novo_canal[0] != '#'){
-							strcpy(buff_out, "O nome do canal deve começar com o caractere '#', tente novamente.\n");
+							strcpy(buff_out, "O nome do canal deve começar com o caractere '#', tente novamente.\n\n");
 				 			send(cli->sockfd, buff_out, strlen(buff_out), 0);
 							bzero(buff_out, BUFFER_SZ);
 							bzero(buff_in, BUFFER_SZ);
 							continue;
 						}
+
+						if (strcmp(cli->canal, novo_canal) == 0){
+							strcpy(buff_out, "Você já está neste canal!\n\n");
+				 			send(cli->sockfd, buff_out, strlen(buff_out), 0);
+				 			bzero(buff_out, BUFFER_SZ);
+							bzero(buff_in, BUFFER_SZ);
+				 			continue;
+						}
+
 						short int flag_canal = 0;
 						for (int i = 0; i < cli_count; i++){
  							if (strcmp(clients[i]->canal, novo_canal) == 0){
@@ -322,6 +331,19 @@ void *handle_client(void *arg){
 						strcpy(buff_out, " saiu do canal.\n");
 						send_message(buff_out, cli->uid, cli->canal);
 
+						if (cli->mod == 1){
+							cli->mod = 0;
+
+							for(int i = 0; i < cli_count; i++){
+								if (strcmp(cli->canal, clients[i]->canal) == 0 && strcmp(cli->name, clients[i]->name) != 0){
+									clients[i]->mod = 1;
+									sprintf(buff_out, "%s é o novo moderador deste canal!\n", clients[i]->name);
+									send_message(buff_out, cli->uid, cli->canal);
+									break;
+								}
+							}
+						}
+
 						//Muda o canal
  						strcpy(cli->canal, novo_canal);
 
@@ -331,7 +353,7 @@ void *handle_client(void *arg){
 				 			send(cli->sockfd, buff_out, strlen(buff_out), 0);
 				 			cli->mod = 1;	//da privilegios de moderador
 				 		}
-				 		sprintf(buff_out, "\n=== BEM-VINDO(A) AO CANAL %s ===", cli->canal);
+				 		sprintf(buff_out, "\n=== Bem-vindo(a) ao canal %s ===\n\n", cli->canal);
 				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
 
 				 		//Avisa aos usuarios do canal que o usuario entrou
@@ -523,6 +545,27 @@ void *handle_client(void *arg){
 							}
 						}
 		    		}
+		    		else if (strcmp(buff_in, "/exit") == 0 || strcmp(buff_in, "/quit") == 0){
+		    			if (DEBUG) printf("%s saindo...\n", cli->name);
+						if (cli->mod == 1){
+						cli->mod = 0;
+
+						sprintf(buff_out, "%s has left\n", cli->name);
+						printf("%s", buff_out);
+						send_message(buff_out, cli->uid, cli->canal);
+
+						for(int i = 0; i < cli_count; i++){
+							if (strcmp(cli->canal, clients[i]->canal) == 0 && strcmp(cli->name, clients[i]->name) != 0){
+								clients[i]->mod = 1;
+								if (DEBUG) printf("%s é o novo moderador\n", clients[i]->name);
+								sprintf(buff_out, "%s é o novo moderador deste canal!\n", clients[i]->name);
+								send_message(buff_out, cli->uid, cli->canal);
+								break;
+							}
+						}
+					}
+
+					}
 		    		else {
 		    			strcpy(buff_out, "O comando requisitado não existe.\n\n");
 						send_message(buff_out, cli->uid, cli->canal);
@@ -539,12 +582,11 @@ void *handle_client(void *arg){
 					}
 				}
 			}
-		} else if (receive == 0 || strcmp(buff_out, "/exit") == 0){
-			sprintf(buff_out, "%s has left\n", cli->name);
-			printf("%s", buff_out);
-			send_message(buff_out, cli->uid, cli->canal);
+		}
+		else if (receive == 0){
 			leave_flag = 1;
-		} else {
+		} 
+		else {
 			printf("ERROR: -1\n");
 			leave_flag = 1;
 		}
@@ -606,7 +648,8 @@ int main(int argc, char *argv[]){
 	while(1){
 		socklen_t clilen = sizeof(cli_addr);
 		connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);
-
+		print_adress(cli_addr);
+		
 		char serv_disp[50];
 		/* Checa se o máximo de clientes foi atingido*/
 		if((cli_count + 1) == MAX_CLIENTS){

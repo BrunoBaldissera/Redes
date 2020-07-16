@@ -64,27 +64,30 @@ void send_msg_handler() {
 	    	break;
 	    }
 		str_trim_lf(message, LENGTH);
-	    if (strcmp(message, "/exit") == 0) { //comandos de saída
-			break;
-	    }
-	    if (strcmp(message, "/quit") == 0) { //comandos de saída
-			break;
-	    }
-	    else{
-	    	//Caso a mensagem seja maior que 4096 bytes, ela é enviada em pedaços
-	    	for(int offset = 0; strlen(message+offset) > 0; offset += 4095){
-			    int msg_size = strlen(message+offset);
-			    if(msg_size < 4096){
-					memcpy(buffer,message+offset,msg_size);
-			    	buffer[msg_size] = '\0';
-			    	send(sockfd, buffer, strlen(buffer), 0);
-			    	break;
-			    }
-			    else{
-			    	memcpy(buffer,message+offset,4095);
-			    	buffer[4095] = '\0';
-			    	send(sockfd, buffer, strlen(buffer), 0);
-			    }
+	    //Caso a mensagem seja maior que 4096 bytes, ela é enviada em pedaços
+	    for(int offset = 0; strlen(message+offset) > 0; offset += 4095){
+			int msg_size = strlen(message+offset);
+			if(msg_size < 4096){
+				memcpy(buffer,message+offset,msg_size);
+			    buffer[msg_size] = '\0';
+			    send(sockfd, buffer, strlen(buffer), 0);
+
+			    if(strcmp(message, "/exit") == 0 || strcmp(message, "/quit") == 0){
+	    			printf("saindo.\n");
+	    			sleep(1);
+	    			printf("saindo....\n");
+	    			sleep(1);
+	    			printf("saindo.........\n");
+	    			sleep(1);
+	    			flag = 1;
+	    		}
+
+			    break;
+			}
+			else{
+			    memcpy(buffer,message+offset,4095);
+			    buffer[4095] = '\0';
+			    send(sockfd, buffer, strlen(buffer), 0);
 			}
 	    }
 	    //zera os buffers
