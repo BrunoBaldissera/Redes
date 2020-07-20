@@ -124,6 +124,7 @@ void recv_msg_handler() {
 
 int main(int argc, char *argv[]){
 	char name[40];
+	//recebe a porta pelo argumento na chamada do programa
 	int porta = atoi(argv[2]);
 
 	printf("%s é o ip e %d é a porta\n", argv[1], porta);
@@ -132,7 +133,8 @@ int main(int argc, char *argv[]){
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN){
     	signal(SIGINT, ignore);
 	}
-
+	
+	//Recebe o nome do usuário e verifca ele
 	printf("\n\nAntes de qualquer coisa, por favor digite o seu nome: ");
   	fgets(name, 40, stdin);
   	str_trim_lf(name, strlen(name));
@@ -157,6 +159,8 @@ int main(int argc, char *argv[]){
 
   	printf("\n\nOlá %s! Bem vindo ao IRC. Para conectar ao servidor e começar a conversar digite /connect seguido do nome do canal"
   	       "(o nome de um canal deve começar com o caractere '#')\n\n", name);
+
+	//Esse loop aguarda uma mensagem do usuário com um comando de connect ao servidor e com o canal
   	while(1){
   		if(feof(stdin)){
   			return EXIT_FAILURE;
@@ -183,7 +187,7 @@ int main(int argc, char *argv[]){
   		}
   	}
 
-  	// Conectando ao servidor
+	//A comunicaço com o servidor é estabelecida
   	int err = connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
   	if (err == -1) {
 		printf("Erro: connect. Inicie o servidor\n");
@@ -193,7 +197,7 @@ int main(int argc, char *argv[]){
 	char serv_disp[50];
 	if (recv(sockfd, serv_disp, 50, 0) > 0){
 		printf("%s\n\n", serv_disp);
-		//aqui verificamos se a mensagem recebuda é a de servidor disponível ou não, e como sabemos que a de indisponibilidade começa com o caractere 'O', usamos isso
+		//aqui verificamos se a mensagem recebida é a de servidor disponível ou não, e como sabemos que a de indisponibilidade começa com o caractere 'O', usamos isso
 		//para uma facil distinção.
 		if (serv_disp[0] == 'O') return 0;
 	}
@@ -202,23 +206,26 @@ int main(int argc, char *argv[]){
 
 	// Enviando o nome para o servidor
 	send(sockfd, name, 40, 0);
-	//sleep(0.3);
-	// Enviando ao servidor o nome do canal a ser conectado
+
+	// Enviando ao servidor o nome do canal a ser conectado, inserido na mesma linha do /connect
 	str_trim_lf(nome_canal, strlen(nome_canal));
 	send(sockfd, nome_canal, 50, 0);
 
+	//é criada uma thread para lidar com as mensagens recebidas
 	pthread_t recv_msg_thread;
   	if(pthread_create(&recv_msg_thread, NULL, (void *) recv_msg_handler, NULL) != 0){
 		printf("ERRO: pthread\n");
 		return EXIT_FAILURE;
 	}
 
+	//é criada outra thread para lidar com as mensagens enviadas
 	pthread_t send_msg_thread;
   	if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
 		printf("ERRO: pthread\n");
     	return EXIT_FAILURE;
     }
 
+	//o programa se mantém em execução até que uma flag de interrupção é identificada
 	while (1){
 		if(flag){
 			printf("\nAte a proxima!\n");
@@ -227,6 +234,7 @@ int main(int argc, char *argv[]){
     	sleep(0.5);
 	}
 
+	//fechamos o socket antes de finalizar o programa
 	close(sockfd);
 
 	return EXIT_SUCCESS;

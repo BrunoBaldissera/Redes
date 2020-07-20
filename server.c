@@ -3,14 +3,6 @@
 //BRUNO GAZONI - 7585037
 //BRUNO BALDISSERA - 10724351
 
-//TO DO: CRIAR LOGINS PARA USUARIOS, GUARDADOS EM ARQUIVO (USAR HASH PARA SENHAS)
-//	DAR NOMES A CANAIS, CRIAR UM CANAL NOVO QUANDO UM CLIENTE CONECTA A ELE (UM MESMO SERVIDOR TERA VARIOS CANAIS RECONHECIDOS PELO NOME)
-//	DAR NICKNAMES AOS CLIENTES 
-//	IDENTIFICAR UM USUARIO MODERADOR
-//	IMPLEMENTAR: KICK
-//		     MUTE/UNMUTE
-//		     WHOIS
-
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -32,7 +24,8 @@
 static _Atomic unsigned int cli_count = 0;
 //static int uid = 10;
 
-/* Estrutura do cliente */
+/* Estrutura do cliente, com todas as suas informações necessárias de seu socket, direitos de moderador,
+	canal em que se encontra, número do usuário, nome (único) e se está silenciado ou não */
 typedef struct{
 	struct sockaddr_in address;
 	int sockfd;
@@ -68,7 +61,6 @@ void str_trim_lf (char* arr, int length) {
     	}
   	}
 }
-
 
 /* Adiciona clientes à fila de clientes */
 void queue_add(client_t *cl){
