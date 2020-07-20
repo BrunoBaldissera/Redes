@@ -16,16 +16,17 @@
 
 #define LENGTH 20000 //tamanho máximo do buffer de mensagens digitadas pelo usuário.
 //Esse buffer será repartido em trechos de 4096 bytes na função send_msg_handler
-#define DEBUG 1
+#define DEBUG 1	//para fins de debug
 
-// Global variables
+// Global variables:
+
 //flag pra sair do programa
 volatile sig_atomic_t flag = 0;
 //socket
 int sockfd = 0;
 
 void ignore(){
-	//ignora
+	//função chamada quando um sinal de interrupção CTRL + C é recebido
 	printf("\nPara sair do programa use o comando /quit ou CTRL + D\n");
 }
 
@@ -208,7 +209,7 @@ int main(int argc, char *argv[]){
 	send(sockfd, name, 40, 0);
 
 	// Enviando ao servidor o nome do canal a ser conectado, inserido na mesma linha do /connect
-	str_trim_lf(nome_canal, strlen(nome_canal));
+	//str_trim_lf(nome_canal, strlen(nome_canal));
 	send(sockfd, nome_canal, 50, 0);
 
 	//é criada uma thread para lidar com as mensagens recebidas

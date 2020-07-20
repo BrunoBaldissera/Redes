@@ -3,6 +3,27 @@
 //BRUNO GAZONI - 7585037
 //BRUNO BALDISSERA - 10724351
 
+/*AVISO IMPORTANTE:
+		A comunicação feita entre redes foi testada utilizando a ferramenta ngrok, 
+	em que a máquina que executa o programa servidor deve utilizar para fazer um tunelamento
+	com um servidor ngrok externo, para que os clientes por sua vez se conectem ao ip e porta
+	providenciados por este serviço no momento em que o servidor o aciona.
+		Esta configũração é feita no makefile, na opção roda_cliente, onde o ip
+	do servidor ngrok é passado como argumento do programa, bem como a porta necessária.
+		Por exemplo, no último teste feito entre os membros do grupo. A máquina que roda
+	o servidor localmente usou o comando: ./ngrok tcp 3000
+	já que 3000 é a porta onde o servidor escuta. Então o serviço ngrok
+	ofereceu um domínio da seguinte forma:
+	Forwarding                    tcp://2.tcp.ngrok.io:17353 -> localhost:3000  
+		Então foi atualizado no github o makefile para rodar o programa cliente fazendo com que
+	o socket escute na porta 17353 do domínio 2.tcp.ngrok.io,
+	que por sua vez é identificado pelo ip 3.23.201.37.
+		Finalmente, o cliente efetua um pull no github para a versão mais recente, roda o cliente pela
+	diretriz do makefile atualizada e a comunicação é estabelecida com servidor entre redes.
+		OBS: Por causa dessa dinâmica, o comando /whois acaba por sempre retornar o ip
+	do alvo como sendo do localhost, mesmo estando com uma lógica correta de implementação, uma vez
+	que a comunicação é interpretada como ocorrendo em uma mesma máquina local.*/
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -14,7 +35,6 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <signal.h>
-
 
 #define MAX_CLIENTS 100
 #define BUFFER_SZ 2048
@@ -91,7 +111,7 @@ void queue_remove(int uid){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-/* Envia mensagem para todos os clientes em um canal(incluindo o remetente, como dito na especificação) */
+/* Envia mensagem para todos os clientes em um canal (incluindo o remetente, como dito na especificação) */
 int send_message(char *s, int uid, char* canal){
 	int send_ret = 0;
 	int trials;
@@ -128,7 +148,6 @@ int send_message_un(char *s, int uid, char* nickname, char* canal){
 				if(trials == 5){
 					send_ret = 1;
 				}
-			//recv(clients[i]->sockfd, ack_recv, 4,0);
 			}
 		}
 	}
@@ -137,62 +156,24 @@ int send_message_un(char *s, int uid, char* nickname, char* canal){
 	return send_ret;
 }
 
-// Trata o login com os clientes 
-// LOGIN = admin
-// SENHA = admin
-int login(void *arg){
-	client_t *cli = (client_t *)arg;
-	
-	char buffer[50];
-	char message[50];
-
-	strcpy(message, "Digite o login.");
-
-	char LOGIN_SERVER[50] = "admin";
-	char SENHA_SERVER[50] = "admin";
-
-	send(cli->sockfd,message,strlen(message),0);
-	recv(cli->sockfd, buffer, 50, 0);
-
-	if(strcmp(buffer,LOGIN_SERVER) != 0){
-		strcpy(message,"Login incorreto.");
-		send(cli->sockfd,message,strlen(message),0);
-		return -1;
-	}
-	else{
-		strcpy(message,"Digite a senha.");
-		send(cli->sockfd,message,strlen(message),0);
-		recv(cli->sockfd, buffer, 40, 0);
-
-		if(strcmp(buffer,SENHA_SERVER) != 0){
-			strcpy(message,"Senha incorreta.");
-			send(cli->sockfd,message,strlen(message),0);
-			return -1;
-		}
-		else{
-			return 1;
-		}
-	}
-}
-
-/* Lida com toda a comunicação com o cliente */
+/* Lida com toda a comunicação com o cliente, recebendo suas mensagens, redirecionando para outros clientes
+	quando necessário, executando operações, interpretando comandos.*/
 void *handle_client(void *arg){
 	char buff_in[BUFFER_SZ];
 	char buff_out[BUFFER_SZ];
 	char name[40];
-	char nome_canal[50];
 	int leave_flag = 0;
-	int aut = 1;
 
-
+	//incrementamos a contagem de clientes, visto que a cada vez que esta função é chamada temos um novo cliente.
 	cli_count++;
 	client_t *cli = (client_t *)arg;
 	
-	// Name
+	// Tratamos o nome enviado pelo usuário
 	if(recv(cli->sockfd, name, 40, 0) <= 0 || strlen(name) <  1 || strlen(name) >= 40-1){
 		printf("Não inseriu o nome.\n");
 		leave_flag = 1;
 	}
+	//caso já exista um usuário com o nome, um nome provisório userX, sendo X o número do cliente, é dado para o usuário.
 	else{
 		short int flag_user = 0;
 		for(int i = 0; i < cli_count; i++){
@@ -215,6 +196,7 @@ void *handle_client(void *arg){
 		bzero(buff_out, BUFFER_SZ);
 		bzero(buff_in, BUFFER_SZ);
 
+		//recebemos a string com o nome do canal que o usuário enviou
 		recv(cli->sockfd, buff_in, 50, 0);
 		printf("Nome de canal recebido: %s\n", buff_in);
 
@@ -231,6 +213,7 @@ void *handle_client(void *arg){
 
  		strncpy(cli->canal, buff_in, strlen(buff_in));
 
+ 		//caso o canal seja novo, damos direitos de moderador ao usuário neste canal
  		if (canal_ex == 0){
  			printf("Novo canal %s criado.\n", cli->canal);
  			strcpy(buff_out, "Esse canal nao existia anteriormente a acabou de ser criado.\n\n Voce agora e o moderador deste canal.\n\n");
@@ -240,25 +223,22 @@ void *handle_client(void *arg){
 
 		bzero(buff_out, BUFFER_SZ);
 		bzero(buff_in, BUFFER_SZ);
-		//--------------------------------------------------------------------------------------
 
-		// se o cliente entrar no chat
-		//aut = login(arg);
-		//if(aut == 1){
-			sprintf(buff_out, "%s conectou-se", cli->name);
-			printf("%s\n", buff_out);
-			fflush(stdout);
-			leave_flag = send_message(buff_out, cli->uid, cli->canal);
-		//}
-		//else{
-		//	leave_flag = 1;
-		//}
+		//enviamos uma mensagem para todos no canal comunicando a entrada do usuário neste
+		sprintf(buff_out, "%s conectou-se", cli->name);
+		printf("%s\n", buff_out);
+		fflush(stdout);
+		leave_flag = send_message(buff_out, cli->uid, cli->canal);
 	}
 
 	bzero(buff_out, BUFFER_SZ);
 	bzero(buff_in, BUFFER_SZ);
 
 
+	/*Este é o loop principal da função, responsável por receber as mensagens do usuário,
+		identificar se é um comando ou não (caso seja ele faz as operações necessárias), e
+		se não, manda como uma mensagem comum aos outros usuários do canal, sempre verificando
+		se o usuário saiu do programa como condição de parada.*/
 	while(1){
 		if (leave_flag) {
 			break;
@@ -267,17 +247,20 @@ void *handle_client(void *arg){
 		if (DEBUG) printf("buff_in: %s\n", buff_in);
 		if (receive > 0){
 			if(strlen(buff_in) > 0){
+				//verificanmos se o primeiro caractere do input do usuário é uma barra, o que caracteriza um comando.
 				if(buff_in[0] == '/'){
+					//Comando de /ping, o servidor apenas responde com a mensagem "pong"
 					if(strcmp(buff_in,"/ping") == 0){
 						send(cli->sockfd,"SERVER: pong",strlen("SERVER: pong\0"),0);
 					}
+					//esse comando faz com que o servidor explique todos os demais comandos para o usuário.
 					else if (strncmp(buff_in, "/help", 5) == 0) {
 						strcpy(buff_out, "\n Comandos disponiveis: \n"
 							"\t/ping : O servidor responde com \"pong\".\n"
 							"\t/join nomeCanal : Você entrará no canal nomeCanal, e caso ele já não exista, será criado e você será um moderador lá. "
 							"(Um canal deixa de existir se não houverem mais usuários nele)\n"
 							"\t/nickname Apelido : Você mudará o nome pelo qual é reconhecido no chat para Apelido.\n"
-							"Comandos para moderadores: \n\t"
+							"Comandos para moderadores: \n\n\t"
 							"\t/whois Usuario : O servidor responde com o ip do usuario identificado por Usuario.\n"
 							"\t/kick Usuario : Caso ele exista no canal, Usuario é expulso do canal onde o moderador e ele estão.\n"
 							"\t/mute Usuario : As mensagens de Usuario não são mais vistas pelos outros usuários, até que ele seja dessilenciado.\n"
@@ -286,7 +269,11 @@ void *handle_client(void *arg){
 							"Divirta-se!\n\n");
 				 		send(cli->sockfd, buff_out, strlen(buff_out), 0);
 					}
-					else if (strncmp(buff_in, "/join", 5) == 0) { //comandos de saída
+					//No /join verificamos o canal para o qual o usuário quer se conectar,
+					// e caso ele não exista ainda o criamos, oferencendo direitos de moderador ao usuário.
+					// Caso o usuário esteja saindo de um canal no qual possui direitos de moderador, esses direitos são passados para outro
+					// usuário que permaneceu no canal, se este existir. Se não, o canal deixa de existir.
+					else if (strncmp(buff_in, "/join", 5) == 0) {
 						char novo_canal[50];
 						int j = 0;
 						for(int i = 6; i < strlen(buff_in); i++){
@@ -356,8 +343,10 @@ void *handle_client(void *arg){
 
 				 		flag_canal = 0;
 		    		}
+		    		// /nickname verifica o apelido que o usuário quer obter, verifica se alguém já possui-o, 
+		    		// e caso não, muda o nome do usuário, avisando os demais usuários do canal.
 		    		else if (strncmp(buff_in, "/nickname", 9) == 0) { //comandos de saída
-		    			if (DEBUG) printf("o comando foi %s\n strlen(buff_in) = %d\n", buff_in, strlen(buff_in));
+		    			if (DEBUG) printf("o comando foi %s\n strlen(buff_in) = %lu\n", buff_in, strlen(buff_in));
 		    			int j = 0;
 		    			char novo_apelido[50];
 						for(int i = 10; i < strlen(buff_in); i++){
@@ -387,6 +376,8 @@ void *handle_client(void *arg){
 						}
 
 		    		}
+		    		//Caso o usuário seja moderador, verifica se o usuário definido no comando existe, está no canal, e,
+		    		//se afirmativo, retorna o ip do usuário. 
 					else if (strncmp(buff_in, "/whois", 6) == 0) { //comandos de saída
 						if(cli->mod == 0){
 							send(cli->sockfd,"Você precisa ser moderador para usar este comando.\n",strlen("Você precisa ser moderador para usar este comando.\n\0"),0);
@@ -428,6 +419,9 @@ void *handle_client(void *arg){
 							}
 						}
 		    		}
+		    		//Caso o usuário seja moderador, verifica se o usuário definido no comando existe, está no canal, e,
+		    		//se sim, muda o canal do alvo para o canal "limbo", impossível de ser conecado por outra forma,
+		    		//ja que não possui um caracter '#'.
 		    		else if (strncmp(buff_in, "/kick", 5) == 0) { //comandos de saída
 		    			if(cli->mod == 0){
 							send(cli->sockfd,"Você precisa ser moderador para usar este comando.\n",strlen("Você precisa ser moderador para usar este comando.\n\0"),0);
@@ -468,6 +462,9 @@ void *handle_client(void *arg){
 							}
 						}
 		    		}
+		    		//Caso o usuário seja moderador, verifica se o usuário definido no comando existe, está no canal, e,
+		    		//se sim, silencia o alvo, fazendo com que suas mensagens não sejam ouvidas pelos demais usuários do canal,
+		    		//graças a uma flag de silenciado, que é checada sempre que um usuário manda uma mensagem.
 		    		else if (strncmp(buff_in, "/mute", 5) == 0) { //comandos de saída
 		    			if(cli->mod == 0){
 							send(cli->sockfd,"Voce precisa ser moderador para usar este comando.\n",strlen("Voce precisa ser moderador para usar este comando.\n\0"),0);
@@ -503,6 +500,7 @@ void *handle_client(void *arg){
 							}
 						}
 		    		}
+		    		//faz o mesmo que a função /mute, mas revertendo o valor da flag de silenciamento do alvo.
 		    		else if (strncmp(buff_in, "/unmute", 7) == 0) { //comandos de saída
 		    			if(cli->mod == 0){
 							send(cli->sockfd,"Voce precisa ser moderador para usar este comando.\n",strlen("Voce precisa ser moderador para usar este comando.\n\0"),0);
@@ -537,6 +535,8 @@ void *handle_client(void *arg){
 							}
 						}
 		    		}
+		    		//Sai do programa, fazendo as devidas notificações, mudanças de direitos de moderador, decrementando o número
+		    		// de usuários do IRC, e fechando o socket.
 		    		else if (strcmp(buff_in, "/exit") == 0 || strcmp(buff_in, "/quit") == 0){
 		    			if (DEBUG) printf("%s saindo...\n", cli->name);
 						if (cli->mod == 1){
@@ -558,11 +558,14 @@ void *handle_client(void *arg){
 					}
 
 					}
+					//Caso o caractere '/' for usado mas sem um comando implementado, avisamos o usuário
+					// que o comando não existe e recomendamos o uso do comando /help.
 		    		else {
-		    			strcpy(buff_out, "O comando requisitado não existe.\n\n");
+		    			strcpy(buff_out, "O comando requisitado não existe. Caso precise, use o comando /help\n\n");
 						send_message(buff_out, cli->uid, cli->canal);
 		    		}	
 		    	}
+		    	//Caso seja uma mensagem comum, envia ela a todos os membros do canal, com a identificação de seu nome anteriormente à mensagem em si.
 				else{
 					sprintf(buff_out,"%s: %s\n", cli->name, buff_in);
 					str_trim_lf(buff_out, strlen(buff_out));
@@ -583,6 +586,7 @@ void *handle_client(void *arg){
 			leave_flag = 1;
 		}
 
+		//são limpados os buffers de input e output.
 		bzero(buff_out, BUFFER_SZ);
 		bzero(buff_in, BUFFER_SZ);
 	}
@@ -599,7 +603,7 @@ void *handle_client(void *arg){
 
 int main(int argc, char *argv[]){
 
-	//configuração
+	//configuração para a comunicação via sockets.
 	//char *ip = "127.0.0.1";
 	int port = 3000;
 	int option = 1;
@@ -608,8 +612,6 @@ int main(int argc, char *argv[]){
   	struct sockaddr_in serv_addr;
   	struct sockaddr_in cli_addr;
   	pthread_t tid;
-  	char canais[100][50];
-
 
 	//Configurações do Socket
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -637,6 +639,8 @@ int main(int argc, char *argv[]){
 
 	printf("\nServer aberto\n\n");
 
+	//Este loop aceita conexões de qualquer usuário que tente se conectar com o servidor, criando threads distintas para cada cliente,
+	// usando a função principal 'handle_client()'
 	while(1){
 		socklen_t clilen = sizeof(cli_addr);
 		connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);

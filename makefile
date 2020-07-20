@@ -1,6 +1,6 @@
 compila:
-	gcc client.c -o client -lpthread
-	gcc server.c -o server -lpthread
+	gcc client.c -o client -Wall -lpthread
+	gcc server.c -o server -Wall -lpthread
 
 roda_servidor:
 	./server
